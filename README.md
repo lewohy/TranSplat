@@ -15,11 +15,27 @@ Built on top of [2D Gaussian Splatting](https://github.com/hbb1/2d-gaussian-spla
 ## ⭐ News
 - 2026/07/17: Initial public code release, alongside the [project page](https://tonyyu0822.github.io/transplat/).
 
-## 🚧 GUI (Coming Soon)
+## 🖥️ Interactive GUI Viewer
 
-We are packaging the interactive GUI shown below — real-time source/target environment-map sampling with live, spatially-varying relighting — for public release. It is **not** part of this repository yet; the preview below is a capture of the internal tool.
+TranSplat includes an interactive web-based GUI built on [Viser](https://viser.studio) supporting real-time rendering, multi-model composition (2DGS foreground + 3DGS background), interactive rigid transforms, auxiliary buffer inspection (depth, normals, curvature, edge), and live SH radiance transfer relighting.
 
-![Preview of the upcoming interactive relighting GUI — not yet part of this repository](assets/gui_preview.gif)
+![Interactive Viser-based relighting GUI](assets/gui_preview.gif)
+
+### Quick Start
+```bash
+# Install GUI requirements (into existing surfel_splatting environment)
+pip install -r GUI/requirements.txt
+
+# Launch viewer on a single trained 2DGS model
+python viewer.py output/ficus/point_cloud/iteration_30000/point_cloud.ply
+
+# Object insertion and relighting in a target scene (auto-centers object into room)
+python viewer.py output/ficus/point_cloud/iteration_30000/point_cloud.ply classroom.ply --auto_center
+
+# Multi-model composition with manual 4x4 row-major transform
+python viewer.py object_2dgs.ply background_3dgs.ply -t 1 0 0 0  0 1 0 0  0 0 1 0.5  0 0 0 1
+```
+Open `http://localhost:8080` in your browser. For the complete reference on navigation controls, UI panels, camera trajectory animation, and relighting modes, see the [GUI User Guide](GUI/README.md).
 
 ## Installation
 

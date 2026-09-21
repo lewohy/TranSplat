@@ -1,0 +1,13 @@
+# Gen by Cursor
+# TranSplat Viser GUI requirements
+#
+# If you are already using the `surfel_splatting` conda environment created from
+# environment.yml, you only need to install these additional packages:
+viser==0.1.29
+splines
+
+# The following packages are typically already present in the base environment:
+plyfile
+trimesh
+matplotlib
+opencv-python

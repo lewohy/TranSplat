@@ -1,0 +1,410 @@
+import time
+import threading
+import traceback
+import numpy as np
+import torch
+import viser
+import viser.transforms as vtf
+from internal.cameras.cameras import Cameras
+from internal.utils.graphics_utils import fov2focal
+
+
+class ClientThread(threading.Thread):
+    def __init__(self, viewer, renderer, client: viser.ClientHandle):
+        super().__init__()
+        self.viewer = viewer
+        self.renderer = renderer
+        self.client = client
+        self.render_trigger = threading.Event()
+        self.last_move_time = 0
+        self.last_camera = None  # store camera information
+        self.state = "low"  # low or high render resolution
+        self.stop_client = False  # whether stop this thread
+
+        if viewer.default_camera_position is not None:
+            client.camera.position = np.asarray(viewer.default_camera_position)
+        if viewer.default_camera_look_at is not None:
+            client.camera.look_at = np.asarray(viewer.default_camera_look_at)
+        client.camera.up_direction = viewer.up_direction
+        self.last_camera = client.camera
+        self.render_trigger.set()
+
+        def entry_animation():
+            # Wait a tiny bit for client to fully initialize
+            time.sleep(0.1)
+            
+            start_time = time.time()
+            duration = 2.5
+            
+            target_pos = np.array(client.camera.position)
+            target_look = np.array(client.camera.look_at)
+            up = np.array(client.camera.up_direction)
+            if np.linalg.norm(up) < 1e-3:
+                up = np.array([0.0, 0.0, 1.0])
+            else:
+                up = up / np.linalg.norm(up)
+                
+            dir_vec = target_pos - target_look
+            dist = np.linalg.norm(dir_vec)
+            if dist < 1e-3:
+                dir_vec = np.array([1.0, 1.0, 1.0])
+                dir_vec = dir_vec / np.linalg.norm(dir_vec)
+                dist = 5.0
+            else:
+                dir_vec = dir_vec / dist
+            
+            while True:
+                now = time.time()
+                t = (now - start_time) / duration
+                if t >= 1.0:
+                    with client.atomic():
+                        client.camera.position = target_pos
+                        client.camera.look_at = target_look
+                    break
+                
+                # Easing function (cubic out)
+                ease = 1 - (1 - t) ** 3
+                
+                # Spin angle (180 degrees)
+                angle = (1 - ease) * np.pi
+                
+                # Interpolate distance (start 3x further)
+                curr_dist = dist * 3.0 * (1 - ease) + dist * ease
+                
+                # Rotate dir_vec around 'up'
+                v_rot = dir_vec * np.cos(angle) + np.cross(up, dir_vec) * np.sin(angle) + up * np.dot(up, dir_vec) * (1 - np.cos(angle))
+                
+                # Interpolate elevation (start elevated)
+                elev = up * dist * 1.5 * (1 - ease)
+                
+                pos = target_look + v_rot * curr_dist + elev
+                
+                with client.atomic():
+                    client.camera.position = pos
+                    client.camera.look_at = target_look
+                time.sleep(1/60.0)
+                
+        threading.Thread(target=entry_animation, daemon=True).start()
+
+        @client.camera.on_update
+        def _(cam: viser.CameraHandle) -> None:
+            with self.client.atomic():
+                self.last_camera = cam
+                self.state = (
+                    "low"  # switch to low resolution mode when a new camera received
+                )
+                self.render_trigger.set()
+
+        if hasattr(viewer, "render_panel"):
+
+            @viewer.render_panel.preview_button.on_click
+            def _(_) -> None:
+                with self.client.atomic():
+                    self.render_trigger.set()
+
+            @viewer.render_panel.STOP.on_click
+            def _(_) -> None:
+                with self.client.atomic():
+                    self.render_trigger.set()
+
+            @viewer.render_panel.preview_frame_slider.on_update
+            def _(_) -> None:
+                with self.client.atomic():
+                    self.render_trigger.set()
+
+    def get_RT(self, wxyz, position):
+        R = vtf.SO3(wxyz=wxyz)
+        R = R @ vtf.SO3.from_x_radians(np.pi)
+        R = torch.tensor(R.as_matrix())
+        pos = torch.tensor(position, dtype=torch.float64)
+        c2w = torch.eye(4)
+        c2w[:3, :3] = R
+        c2w[:3, 3] = pos
+
+        c2w = torch.matmul(self.viewer.camera_transform, c2w)
+        c2w[:3, 1:3] *= -1
+
+        w2c = torch.linalg.inv(c2w)
+        R = w2c[:3, :3]
+        T = w2c[:3, 3]
+
+        return R, T
+
+    def make_camera(self, cam, ptc_mode=False, max_res_override=None):
+        if max_res_override is None:
+            max_res, _ = self.get_render_options()
+        else:
+            max_res = int(max_res_override)
+        image_height = max_res
+        image_width = int(image_height * cam.aspect)
+
+        if image_width > max_res:
+            image_width = max_res
+            image_height = int(image_width / cam.aspect)
+
+        if max_res_override is not None:
+            image_width = max(2, image_width - (image_width % 2))
+            image_height = max(2, image_height - (image_height % 2))
+
+        if ptc_mode:
+            return image_width, image_height
+
+        fx = torch.tensor([fov2focal(cam.fov, max_res)], dtype=torch.float)
+        R, T = self.get_RT(self.client.camera.wxyz, self.client.camera.position)
+
+        return Cameras(
+            R=R.unsqueeze(0),
+            T=T.unsqueeze(0),
+            fx=fx,
+            fy=fx,
+            cx=torch.tensor([image_width // 2], dtype=torch.int),
+            cy=torch.tensor([image_height // 2], dtype=torch.int),
+            width=torch.tensor([image_width], dtype=torch.int),
+            height=torch.tensor([image_height], dtype=torch.int),
+            appearance_id=torch.tensor([0], dtype=torch.int),
+            normalized_appearance_id=torch.tensor([0.0], dtype=torch.float),
+            time=torch.tensor([0], dtype=torch.float),
+            distortion_params=None,
+            camera_type=torch.tensor([0], dtype=torch.int),
+        )[0].to_device(self.viewer.device)
+
+    def render_image(self, camera):
+        return self.renderer.get_outputs(
+            camera,
+            valid_range=None,
+            env_bg_enabled=self.viewer.enable_env_background.value,
+            env_bg_path=self.viewer.env_map_path,
+            active_sh_degree=self.viewer.gaussian_model.max_sh_degree
+        )
+
+    def _to_display_numpy(self, image: torch.Tensor) -> np.ndarray:
+        return (
+            torch.clamp(image, 0.0, 1.0)
+            .mul(255.0)
+            .to(torch.uint8)
+            .cpu()
+            .numpy()
+        )
+
+    def render_image_from_paths(self, path, camera_params):
+        # Construct camera
+        R, T = self.get_RT(path["wxyz"], path["position"])
+        camera = Cameras(R=R.unsqueeze(0), T=T.unsqueeze(0), **camera_params)[
+            0
+        ].to_device(self.viewer.device)
+
+        with torch.no_grad():
+            image = self.render_image(camera)
+            image = torch.clamp(image, max=1.0)
+            image = torch.permute(image, (1, 2, 0))
+
+        return image
+
+    def send_camera_path(self, camera_paths, fps=30):
+        # calculate default camera information
+        max_res, jpeg_quality = self.get_render_options()
+        image_height = max_res
+        image_width = int(image_height * self.last_camera.aspect)
+        if image_width > max_res:
+            image_width = max_res
+            image_height = int(image_width / self.last_camera.aspect)
+
+        camera_params = {
+            "fx": torch.tensor(
+                [fov2focal(self.last_camera.fov, max_res)], dtype=torch.float
+            ),
+            "fy": torch.tensor(
+                [fov2focal(self.last_camera.fov, max_res)], dtype=torch.float
+            ),
+            "cx": torch.tensor([image_width // 2], dtype=torch.int),
+            "cy": torch.tensor([image_height // 2], dtype=torch.int),
+            "width": torch.tensor([image_width], dtype=torch.int),
+            "height": torch.tensor([image_height], dtype=torch.int),
+            "appearance_id": torch.tensor([0], dtype=torch.int),
+            "normalized_appearance_id": torch.tensor([0.0], dtype=torch.float),
+            "time": torch.tensor([0], dtype=torch.float),
+            "distortion_params": None,
+            "camera_type": torch.tensor([0], dtype=torch.int),
+        }
+
+        framenum = self.viewer.render_panel.preview_frame_slider.value
+        while framenum < len(camera_paths) and self.viewer.render_panel.STOP.visible:
+            with self.client.atomic():
+                if self.viewer.render_panel.preview_pause.visible:
+                    start = time.time()
+                    self.viewer.render_panel.preview_frame_slider.value = framenum
+                    image = self.render_image_from_paths(
+                        camera_paths[framenum], camera_params
+                    )
+                    framenum += 1
+                    self.client.set_background_image(
+                        self._to_display_numpy(image),
+                        format=self.viewer.image_format,
+                        jpeg_quality=jpeg_quality,
+                    )
+                    self.render_trigger.set()
+                    end = time.time()
+                    self.viewer.fps.value = f"{(1 / (end-start)):.1f} frame/sec"
+                    self.viewer.gpu_mem.value = self.viewer.get_gpu_memory_usage()
+                else:
+                    while not self.viewer.render_panel.preview_pause.visible:
+                        time.sleep(1 / 10)
+
+    def set_pre_preview(self):
+        self.viewer.render_panel.show_checkbox.value = False
+        self.viewer.render_panel.show_splines.value = False
+        self.viewer.render_panel.move_checkbox.value = False
+
+    def set_post_preview(self):
+        self.viewer.render_panel.play_preview = False
+        self.viewer.render_panel.preview_pause.visible = False
+        self.viewer.render_panel.STOP.visible = False
+        self.viewer.render_panel.preview_button.visible = True
+        self.viewer.render_panel.preview_frame_slider.value = 0
+        self.viewer.render_panel.show_checkbox.value = True
+        self.viewer.render_panel.show_splines.value = True
+        self.viewer.render_panel.move_checkbox.value = True
+
+    def render_and_send(self):
+        if hasattr(self.viewer, "render_panel"):
+            if self.viewer.render_panel.play_preview:
+                if self.viewer.render_panel.preview_cameras is not None:
+                    fps = self.viewer.render_panel.preview_cameras["fps"]
+                    self.set_pre_preview()  # hide keyframes / splines / controllers
+                    self.send_camera_path(
+                        self.viewer.render_panel.preview_cameras["camera_path"], fps
+                    )
+                    self.set_post_preview()  # show hide keyframes / splines / controllers & preview / pause / Stop button to default
+                    self.render_trigger.clear()
+                    self.render_trigger.set()
+        with self.client.atomic():
+            self.last_move_time = time.time()
+            render_time = 0.0
+            prep_time = 0.0
+            send_time = 0.0
+            if (
+                hasattr(self.viewer, "fast_preview_only")
+                and self.viewer.fast_preview_only.value
+            ):
+                self.viewer.fps.value = "WebRTC preview"
+                self.viewer.frame_time.value = "Viser image transport disabled"
+                return
+            with torch.no_grad():
+                # Relight controls may be mounted in General as `edit_panel`
+                # while point-cloud tools live in `edit_tools_panel`.
+                panel = None
+                if hasattr(self.viewer, "edit_tools_panel"):
+                    panel = self.viewer.edit_tools_panel
+                elif hasattr(self.viewer, "edit_panel"):
+                    panel = self.viewer.edit_panel
+
+                show_point_cloud = False
+                show_mesh = False
+                if panel is not None:
+                    if hasattr(panel, "show_point_cloud_checkbox"):
+                        show_point_cloud = panel.show_point_cloud_checkbox.value
+                    if hasattr(panel, "mesh"):
+                        show_mesh = panel.mesh is not None
+
+                if show_point_cloud or show_mesh:
+                    image_width, image_height = self.make_camera(
+                        self.last_camera, ptc_mode=True
+                    )
+                    image = (
+                        self.viewer.background_color.unsqueeze(dim=1)
+                        .unsqueeze(dim=2)
+                        .expand([3, image_height, image_width])
+                    )
+                else:
+                    camera = self.make_camera(self.last_camera)
+                    render_start = time.time()
+                    with self.viewer.render_lock:
+                        image = self.render_image(camera)
+                        if image.is_cuda:
+                            torch.cuda.synchronize(image.device)
+                    render_time = time.time() - render_start
+                    image = torch.clamp(image, max=1.0)
+
+                image = torch.permute(image, (1, 2, 0))
+                _, jpeg_quality = self.get_render_options()
+                prep_start = time.time()
+                display_image = self._to_display_numpy(image)
+                prep_time = time.time() - prep_start
+                send_start = time.time()
+                self.client.set_background_image(
+                    display_image,
+                    format=self.viewer.image_format,
+                    jpeg_quality=jpeg_quality,
+                )
+                send_time = time.time() - send_start
+        end = time.time()
+        self.viewer.fps.value = f"{(1 / (end-self.last_move_time)):.1f} frame/sec"
+        self.viewer.gpu_mem.value = self.viewer.get_gpu_memory_usage()
+        if hasattr(self.viewer, "frame_time"):
+            total_ms = (end - self.last_move_time) * 1000.0
+            self.viewer.frame_time.value = (
+                f"{total_ms:.1f} ms "
+                f"(render {render_time * 1000.0:.1f}, "
+                f"prep {prep_time * 1000.0:.1f}, "
+                f"send {send_time * 1000.0:.1f})"
+            )
+
+    def run(self):
+        # add simple rate limiter so we don't render more than ~60fps
+        last_render_time = 0.0
+        min_dt = 1.0 / 60.0
+        while True:
+            # shorter wait gives more responsive switching between low/high modes
+            trigger_wait_return = self.render_trigger.wait(0.02)
+            # stop client thread?
+            if self.stop_client is True:
+                break
+
+            now = time.time()
+            # if no new trigger within the timeout, we may transition state
+            if not trigger_wait_return:
+                # skip if camera is none
+                if self.last_camera is None:
+                    continue
+                # if we haven't received a trigger in a while, switch to high resolution
+                if self.state == "low":
+                    self.state = "high"  # switch to high resolution mode
+                else:
+                    continue  # nothing to render
+
+            # rate limit: avoid rendering faster than min_dt
+            if now - last_render_time < min_dt:
+                # clear the trigger so we don't immediately re-enter
+                self.render_trigger.clear()
+                continue
+
+            self.render_trigger.clear()
+            try:
+                self.render_and_send()
+            except Exception as err:
+                print("error occurred when rendering for client")
+                traceback.print_exc()
+                self.render_trigger.clear()
+                self.render_and_send()
+
+            last_render_time = time.time()
+        self._destroy()
+
+    def get_render_options(self):
+        if self.state == "low":
+            return self.viewer.max_res_when_moving.value, int(
+                self.viewer.jpeg_quality_when_moving.value
+            )
+        return self.viewer.max_res_when_static.value, int(
+            self.viewer.jpeg_quality_when_static.value
+        )
+
+    def stop(self):
+        self.stop_client = True
+
+    def _destroy(self):
+        print("client thread #{} destroyed".format(self.client.client_id))
+        self.viewer = None
+        self.renderer = None
+        self.client = None
+        self.last_camera = None
