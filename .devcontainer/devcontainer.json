@@ -1,0 +1,28 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://containers.dev/implementors/json_reference/
+{
+    "name": "transplat devcontainer",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "runArgs": ["--gpus=all", "--ipc=host"],
+    "remoteUser": "vscode",
+    "postCreateCommand": "git config --global --add safe.directory '*' && git config core.fileMode false",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "EditorConfig.EditorConfig",
+                "waderyan.gitblame",
+                "jnoortheen.nix-ide",
+                "FanaticPythoner.better-todo-tree",
+                "bierner.github-markdown-preview",
+                "ms-python.python",
+                "charliermarsh.ruff",
+                "tamasfe.even-better-toml",
+                "ms-python.vscode-pylance"
+            ],
+            "settings": {}
+        }
+    }
+}
