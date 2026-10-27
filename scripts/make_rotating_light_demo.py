@@ -55,7 +55,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--crf", type=int, default=18)
     parser.add_argument("--preset", default="slow")
     parser.add_argument("--gpu", default="0")
-    parser.add_argument("--conda-env", default="surfel_splatting")
     parser.add_argument("--num-samples", type=int, default=1200)
     parser.add_argument("--shadow-res", type=int, default=1024)
     parser.add_argument("--floor-alpha", type=float, default=0.05)
@@ -74,28 +73,7 @@ def parse_args() -> argparse.Namespace:
         help="Only rebuild videos from existing HDR previews and render frames.",
     )
     parser.add_argument("--skip-video", action="store_true")
-    parser.add_argument("--inside-conda", action="store_true", help=argparse.SUPPRESS)
     return parser.parse_args()
-
-
-def reexec_in_conda(args: argparse.Namespace) -> None:
-    if args.inside_conda or os.environ.get("CONDA_DEFAULT_ENV") == args.conda_env:
-        return
-    conda = shutil.which("conda")
-    if not conda:
-        raise RuntimeError("conda is not available on PATH")
-    command = [
-        conda,
-        "run",
-        "--no-capture-output",
-        "-n",
-        args.conda_env,
-        "python",
-        str(Path(__file__).resolve()),
-        *sys.argv[1:],
-        "--inside-conda",
-    ]
-    os.execv(conda, command)
 
 
 def require_file(path: Path) -> None:
@@ -679,7 +657,6 @@ def write_manifest(
 
 def main() -> int:
     args = parse_args()
-    reexec_in_conda(args)
     input_ply = validate(args)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)

@@ -7,6 +7,9 @@
         "context": ".."
     },
     "runArgs": ["--gpus=all", "--ipc=host"],
+    "containerEnv": {
+        "UV_LINK_MODE": "copy"
+    },
     "remoteUser": "vscode",
     "postCreateCommand": "git config --global --add safe.directory '*' && git config core.fileMode false",
     "customizations": {
@@ -22,7 +25,10 @@
                 "tamasfe.even-better-toml",
                 "ms-python.vscode-pylance"
             ],
-            "settings": {}
+            "settings": {
+                "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python",
+                "python.terminal.activateEnvironment": false
+            }
         }
     }
 }

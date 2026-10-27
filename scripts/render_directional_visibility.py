@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import sys
 from argparse import Namespace
 from pathlib import Path
@@ -49,30 +48,8 @@ def parse_args() -> argparse.Namespace:
         help="Enhanced display maps this visibility value to black and 1 to white.",
     )
     parser.add_argument("--gpu", default="0")
-    parser.add_argument("--conda-env", default="surfel_splatting")
     parser.add_argument("--force-bake", action="store_true")
-    parser.add_argument("--inside-conda", action="store_true", help=argparse.SUPPRESS)
     return parser.parse_args()
-
-
-def reexec_in_conda(args: argparse.Namespace) -> None:
-    if args.inside_conda or os.environ.get("CONDA_DEFAULT_ENV") == args.conda_env:
-        return
-    conda = shutil.which("conda")
-    if not conda:
-        raise RuntimeError("conda is not available on PATH")
-    command = [
-        conda,
-        "run",
-        "--no-capture-output",
-        "-n",
-        args.conda_env,
-        "python",
-        str(Path(__file__).resolve()),
-        *sys.argv[1:],
-        "--inside-conda",
-    ]
-    os.execv(conda, command)
 
 
 def load_cfg_args(model_path: Path) -> Namespace:
@@ -180,7 +157,6 @@ def save_legend(path: Path, contrast_floor: float) -> None:
 
 def main() -> int:
     args = parse_args()
-    reexec_in_conda(args)
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
     args.repo = args.repo.resolve()

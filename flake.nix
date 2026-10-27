@@ -15,9 +15,11 @@
             inherit system;
           };
           toolPackages = with pkgs; [
+            ffmpeg
             fish
             git
             tzdata.out
+            uv
           ];
         in {
           inherit pkgs toolPackages;

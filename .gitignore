@@ -13,3 +13,5 @@ data
 eval
 *.npz
 **/tmp
+
+/sample

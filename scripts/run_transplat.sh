@@ -21,7 +21,12 @@ set -uo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT_NAME="$(basename "$0")"
-PYTHON_BIN="${PYTHON:-python3}"
+VENV_PYTHON="${REPO_DIR}/.venv/bin/python"
+if [[ -x "${VENV_PYTHON}" ]]; then
+    PYTHON_BIN="${PYTHON:-${VENV_PYTHON}}"
+else
+    PYTHON_BIN="${PYTHON:-python3}"
+fi
 
 # ---------------------------------------------------------------------------
 # Stage runner: prints a banner, runs the command, and reports OK/FAILED.
@@ -50,11 +55,10 @@ run_stage() {
     fi
 }
 
-check_conda_env() {
-    local expected="${1:-surfel_splatting}"
-    if [[ "${CONDA_DEFAULT_ENV:-}" != "${expected}" ]]; then
-        echo "  [WARN] Expected conda env '${expected}', but CONDA_DEFAULT_ENV='${CONDA_DEFAULT_ENV:-<none>}'." >&2
-        echo "         Run 'conda activate ${expected}' first if this was unintentional." >&2
+check_python_env() {
+    if [[ "${PYTHON_BIN}" != "${VENV_PYTHON}" ]]; then
+        echo "  [WARN] Expected the project venv '${VENV_PYTHON}', but using '${PYTHON_BIN}'." >&2
+        echo "         Run 'uv sync' first if this was unintentional." >&2
     fi
 }
 
@@ -138,7 +142,7 @@ EOF
     [[ -n "${lambda_dist}" ]] && args+=(--lambda_dist "${lambda_dist}")
     [[ ${#EXTRA_ARGS[@]} -gt 0 ]] && args+=("${EXTRA_ARGS[@]}")
 
-    check_conda_env
+    check_python_env
     CUDA_VISIBLE_DEVICES="${gpu}" "${PYTHON_BIN}" "${REPO_DIR}/train.py" "${args[@]}"
 }
 
@@ -199,7 +203,7 @@ EOF
     [[ -n "${shadow_res}" ]] && args+=(--shadow_res "${shadow_res}")
     [[ ${#EXTRA_ARGS[@]} -gt 0 ]] && args+=("${EXTRA_ARGS[@]}")
 
-    check_conda_env
+    check_python_env
     CUDA_VISIBLE_DEVICES="${gpu}" "${PYTHON_BIN}" "${REPO_DIR}/radiance_transfer_TranSplat.py" "${args[@]}"
 }
 
@@ -255,7 +259,7 @@ EOF
     [[ "${skip_mesh}" == true ]] && args+=(--skip_mesh)
     [[ ${#EXTRA_ARGS[@]} -gt 0 ]] && args+=("${EXTRA_ARGS[@]}")
 
-    check_conda_env
+    check_python_env
     CUDA_VISIBLE_DEVICES="${gpu}" "${PYTHON_BIN}" "${REPO_DIR}/render.py" "${args[@]}"
 }
 
@@ -303,7 +307,7 @@ EOF
     [[ -n "${output_dir}" ]] && args+=(--output-dir "${output_dir}")
     [[ ${#EXTRA_ARGS[@]} -gt 0 ]] && args+=("${EXTRA_ARGS[@]}")
 
-    check_conda_env
+    check_python_env
     "${PYTHON_BIN}" "${REPO_DIR}/scripts/render_directional_visibility.py" "${args[@]}"
 }
 
@@ -354,7 +358,7 @@ EOF
     [[ -n "${output_dir}" ]] && args+=(--output-dir "${output_dir}")
     [[ ${#EXTRA_ARGS[@]} -gt 0 ]] && args+=("${EXTRA_ARGS[@]}")
 
-    check_conda_env
+    check_python_env
     "${PYTHON_BIN}" "${REPO_DIR}/scripts/make_rotating_light_demo.py" "${args[@]}"
 }
 

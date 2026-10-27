@@ -11,14 +11,13 @@ Interactive web-based viewer for **TranSplat** (2D Gaussian Splatting), built on
 
 ### 1. Installation
 
-If you are using the `surfel_splatting` environment, install the viewer requirements:
+Install the viewer requirements into the project environment:
 
 ```bash
-conda activate surfel_splatting
-pip install -r GUI/requirements.txt
+uv sync --group gui
 ```
 
-*(Installs `viser==0.1.29` and `splines`. No changes to your PyTorch CUDA environment are required.)*
+*(Installs `viser==0.1.29`, `splines` and the `diff-gaussian-rasterization` extension used to render 3DGS backgrounds. No changes to your PyTorch CUDA environment are required.)*
 
 ---
 

@@ -1,0 +1,64 @@
+[project]
+name = "transplat"
+version = "0.1.0"
+requires-python = "==3.8.*"
+dependencies = [
+    "diff-surfel-rasterization",
+    "lpips==0.1.4",
+    "mediapy==1.1.2",
+    "open3d==0.18.0",
+    "opencv-python<5",
+    "pillow==10.2.0",
+    "plyfile",
+    "scikit-image==0.21.0",
+    "simple-knn",
+    "torch==2.0.0",
+    "torchvision==0.15.0",
+    "tqdm==4.66.2",
+    "trimesh==4.3.2",
+    "typing-extensions==4.9.0",
+]
+
+[dependency-groups]
+gui = [
+    "diff-gaussian-rasterization",
+    "splines",
+    "viser==0.1.29",
+]
+
+[tool.uv]
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu118" }
+torchvision = { index = "pytorch-cu118" }
+diff-gaussian-rasterization = { path = "submodules/diff-gaussian-rasterization" }
+diff-surfel-rasterization = { path = "submodules/diff-surfel-rasterization" }
+simple-knn = { path = "submodules/simple-knn" }
+
+[[tool.uv.index]]
+name = "pytorch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
+explicit = true
+
+# The CUDA extensions import torch from setup.py, so they are built against the
+# locked torch, and their metadata is declared here to lock without building.
+[tool.uv.extra-build-dependencies]
+diff-gaussian-rasterization = [{ requirement = "torch", match-runtime = true }, "ninja"]
+diff-surfel-rasterization = [{ requirement = "torch", match-runtime = true }, "ninja"]
+simple-knn = [{ requirement = "torch", match-runtime = true }, "ninja"]
+
+[[tool.uv.dependency-metadata]]
+name = "diff-gaussian-rasterization"
+version = "0.0.0"
+requires-dist = []
+
+[[tool.uv.dependency-metadata]]
+name = "diff-surfel-rasterization"
+version = "0.0.1"
+requires-dist = []
+
+[[tool.uv.dependency-metadata]]
+name = "simple-knn"
+version = "0.0.0"
+requires-dist = []

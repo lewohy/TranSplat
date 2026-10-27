@@ -23,8 +23,8 @@ TranSplat includes an interactive web-based GUI built on [Viser](https://viser.s
 
 ### Quick Start
 ```bash
-# Install GUI requirements (into existing surfel_splatting environment)
-pip install -r GUI/requirements.txt
+# Install GUI requirements
+uv sync --group gui
 
 # Launch viewer on a single trained 2DGS model
 python viewer.py output/ficus/point_cloud/iteration_30000/point_cloud.ply
@@ -44,16 +44,15 @@ Open `http://localhost:8080` in your browser. For the complete reference on navi
 git clone --recursive https://github.com/tonyyu0822/TranSplat.git
 cd TranSplat
 
-# if you already have a working 2D Gaussian Splatting conda environment,
-# just activate that one and skip straight to `pip install` below —
-# TranSplat adds no new dependencies on top of 2DGS.
-conda env create --file environment.yml
-conda activate surfel_splatting
-pip install submodules/diff-surfel-rasterization
-pip install submodules/simple-knn
+# installs Python 3.8, PyTorch 2.0 (CUDA 11.8) and builds the CUDA extensions
+uv sync
+# add the interactive viewer dependencies
+uv sync --group gui
 ```
 
-*Note: This code has been verified to build and run with **CUDA Toolkit 11.8**. If you encounter GCC version errors (e.g. "unsupported GNU version") during the `pip install` step, ensure you are compiling with GCC 11 or earlier by prefixing the install commands with `CC=gcc-11 CXX=g++-11`.*
+The dev container in `.devcontainer/` provides CUDA Toolkit 11.8, GCC 11 and `uv`; run `uv sync` inside it.
+
+*Note: This code has been verified to build and run with **CUDA Toolkit 11.8**. If you encounter GCC version errors (e.g. "unsupported GNU version") during `uv sync`, ensure you are compiling with GCC 11 or earlier by prefixing the command with `CC=gcc-11 CXX=g++-11`.*
 
 **Custom data**: TranSplat uses the same COLMAP / NeRF-Synthetic loaders as 3DGS/2DGS. To prepare your own COLMAP scene, see `convert.py` and the [3DGS data prep instructions](https://github.com/graphdeco-inria/gaussian-splatting?tab=readme-ov-file#processing-your-own-scenes).
 

@@ -27,6 +27,16 @@ ENV TZ=${TZ} \
     COLORTERM=truecolor \
     PATH=/nix/var/nix/profiles/transplat/bin:${PATH}
 
+# Host toolchain for the CUDA extensions and native libraries loaded by
+# open3d/opencv; these must match the Ubuntu glibc, so they come from apt.
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        build-essential \
+        libgl1 \
+        libglib2.0-0 \
+        libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=nix /nix /nix
 
 RUN rm -rf /usr/share/zoneinfo \
