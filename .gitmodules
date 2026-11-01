@@ -11,3 +11,4 @@
 [submodule "sparkvwr"]
 	path = sparkvwr
 	url = https://github.com/rishabhreng/sparkvwr
+	update = none

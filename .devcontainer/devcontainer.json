@@ -7,6 +7,12 @@
         "context": ".."
     },
     "runArgs": ["--gpus=all", "--ipc=host"],
+    // uv runs at container runtime, so its cache and managed Pythons live in named volumes that survive container rebuilds.
+    // Volumes are keyed by the host user so users with different UIDs on a shared Docker daemon don't collide; the cache is shared across that user's devcontainers.
+    "mounts": [
+        "source=uv-cache-${localEnv:USER},target=/home/vscode/.cache/uv,type=volume",
+        "source=transplat-uv-data-${localEnv:USER},target=/home/vscode/.local/share/uv,type=volume"
+    ],
     "containerEnv": {
         "UV_LINK_MODE": "copy"
     },

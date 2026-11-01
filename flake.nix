@@ -15,6 +15,7 @@
             inherit system;
           };
           toolPackages = with pkgs; [
+            curl
             ffmpeg
             fish
             git

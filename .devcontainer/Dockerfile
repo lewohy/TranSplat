@@ -8,7 +8,7 @@ COPY flake.nix flake.lock ./
 
 # Substitute from a BuildKit cache mount acting as a local binary cache, so a flake.lock change only downloads the paths that actually changed.
 # Copy only the runtime closure of the environment, not the whole /nix (store db, flake inputs, build-time dependencies).
-RUN --mount=type=cache,id=nix-binary-cache,target=/nix-cache --mount=type=cache,id=nix-user-cache,target=/root/.cache/nix --mount=type=cache,id=nix-user-cache,target=/root/.cache/nix \
+RUN --mount=type=cache,id=nix-binary-cache,target=/nix-cache --mount=type=cache,id=nix-user-cache,target=/root/.cache/nix \
     nix build path:/src --out-link /tmp/env \
     --option sandbox false --option build-users-group '' \
     --extra-substituters 'file:///nix-cache?trusted=1' \
@@ -31,8 +31,7 @@ ENV TZ=${TZ} \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     PATH=/opt/transplat-env/bin:${PATH}
 
-# Host toolchain for the CUDA extensions and native libraries loaded by
-# open3d/opencv; these must match the Ubuntu glibc, so they come from apt.
+# Host toolchain for the CUDA extensions and native libraries loaded by open3d/opencv; these must match the Ubuntu glibc, so they come from apt.
 # ca-certificates backs SSL_CERT_FILE for the nix-built git/uv.
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -51,7 +50,7 @@ RUN ln -snf "${TZDIR}/${TZ}" /etc/localtime \
     && groupadd --gid "${USER_GID}" "${USERNAME}" \
     && useradd --uid "${USER_UID}" --gid "${USER_GID}" --create-home \
         --shell /opt/transplat-env/bin/fish "${USERNAME}" \
-    && mkdir -p /home/${USERNAME}/.cache /home/${USERNAME}/.config /home/${USERNAME}/.local/share \
+    && mkdir -p /home/${USERNAME}/.cache/uv /home/${USERNAME}/.config /home/${USERNAME}/.local/share/uv \
     && chown -R "${USERNAME}:${USERNAME}" /home/${USERNAME}
 
 USER ${USERNAME}
