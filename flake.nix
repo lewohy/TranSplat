@@ -13,12 +13,18 @@
         let
           pkgs = import nixpkgs {
             inherit system;
+            config.allowUnfreePredicate = pkg:
+              builtins.elem (nixpkgs.lib.getName pkg) [
+                "claude-code"
+              ];
           };
           toolPackages = with pkgs; [
+            claude-code
             curl
             ffmpeg
             fish
             git
+            jq
             tzdata.out
             uv
           ];

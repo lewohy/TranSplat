@@ -29,6 +29,7 @@ ENV TZ=${TZ} \
     LANG=C.UTF-8 \
     COLORTERM=truecolor \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    CLAUDE_CONFIG_DIR=/home/vscode/.config/claude \
     PATH=/opt/transplat-env/bin:${PATH}
 
 # Host toolchain for the CUDA extensions and native libraries loaded by open3d/opencv; these must match the Ubuntu glibc, so they come from apt.
@@ -50,7 +51,7 @@ RUN ln -snf "${TZDIR}/${TZ}" /etc/localtime \
     && groupadd --gid "${USER_GID}" "${USERNAME}" \
     && useradd --uid "${USER_UID}" --gid "${USER_GID}" --create-home \
         --shell /opt/transplat-env/bin/fish "${USERNAME}" \
-    && mkdir -p /home/${USERNAME}/.cache/uv /home/${USERNAME}/.config /home/${USERNAME}/.local/share/uv \
+    && mkdir -p /home/${USERNAME}/.cache/uv /home/${USERNAME}/.config/claude/projects /home/${USERNAME}/.local/share/uv \
     && chown -R "${USERNAME}:${USERNAME}" /home/${USERNAME}
 
 USER ${USERNAME}

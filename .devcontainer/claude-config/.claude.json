@@ -1,0 +1,9 @@
+{
+    "hasCompletedOnboarding": true,
+    "copyOnSelect": false,
+    "projects": {
+        "/workspaces": {
+            "hasTrustDialogAccepted": true
+        }
+    }
+}

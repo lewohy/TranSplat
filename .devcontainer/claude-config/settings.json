@@ -1,0 +1,27 @@
+{
+    "skipDangerousModePermissionPrompt": true,
+    "hooks": {
+        "PermissionRequest": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "msg=$(jq -r '\"권한 요청: \\(.tool_name // \"unknown\")\"'); url=$(printf '%s' \"$msg\" | curl -s -F 'file=@-;filename=message.md' -H 'Authorization: 3l+DMqfCUM3kJJVgD1nKeKgiYHQmBcn5' paste.lewohy.me); short=$(printf '%s' \"$msg\" | jq -Rrs '.[0:100]'); curl -s -o /dev/null -X POST -H 'Authorization: Bearer tk_q3y35e11y5uonkt2c6k9dysjg17yj' --variable \"URL=$url\" --variable \"MSG=$short\" --expand-url 'ntfy.lewohy.me/claude?title=Claude&markdown=yes&attach={{URL:trim:url}}&filename=message.md&message={{MSG:url}}'",
+                        "async": true
+                    }
+                ]
+            }
+        ],
+        "Stop": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "msg=$(jq -r '.last_assistant_message // \"(no message)\"'); url=$(printf '%s' \"$msg\" | curl -s -F 'file=@-;filename=message.md' -H 'Authorization: 3l+DMqfCUM3kJJVgD1nKeKgiYHQmBcn5' paste.lewohy.me); short=$(printf '%s' \"$msg\" | jq -Rrs '.[0:100]'); curl -s -o /dev/null -X POST -H 'Authorization: Bearer tk_q3y35e11y5uonkt2c6k9dysjg17yj' --variable \"URL=$url\" --variable \"MSG=$short\" --expand-url 'ntfy.lewohy.me/claude?title=Claude&markdown=yes&attach={{URL:trim:url}}&filename=message.md&message={{MSG:url}}'",
+                        "async": true
+                    }
+                ]
+            }
+        ]
+    }
+}

@@ -11,13 +11,16 @@
     // Volumes are keyed by the host user so users with different UIDs on a shared Docker daemon don't collide; the cache is shared across that user's devcontainers.
     "mounts": [
         "source=uv-cache-${localEnv:USER},target=/home/vscode/.cache/uv,type=volume",
-        "source=transplat-uv-data-${localEnv:USER},target=/home/vscode/.local/share/uv,type=volume"
+        "source=transplat-uv-data-${localEnv:USER},target=/home/vscode/.local/share/uv,type=volume",
+        // Share Claude Code session history and memory with the host; the source directory must exist on the host.
+        "source=${localEnv:HOME}/.config/claude/projects,target=/home/vscode/.config/claude/projects,type=bind"
     ],
     "containerEnv": {
         "UV_LINK_MODE": "copy"
     },
     "remoteUser": "vscode",
-    "postCreateCommand": "git config --global --add safe.directory '*' && git config core.fileMode false",
+    // -n keeps files Claude Code has already rewritten at runtime (e.g. .claude.json) instead of resetting them.
+    "postCreateCommand": "git config --global --add safe.directory '*' && git config core.fileMode false && cp -rn .devcontainer/claude-config/. \"$CLAUDE_CONFIG_DIR\"/",
     "customizations": {
         "vscode": {
             "extensions": [
