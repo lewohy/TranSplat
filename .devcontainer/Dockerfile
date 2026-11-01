@@ -17,7 +17,7 @@ RUN --mount=type=cache,id=nix-binary-cache,target=/nix-cache --mount=type=cache,
     && cp -a $(nix path-info -r /tmp/env) /out/nix/store/ \
     && ln -s "$(readlink -f /tmp/env)" /out/opt/transplat-env
 
-FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
+FROM nvidia/cuda:12.8.1-devel-ubuntu22.04
 
 ARG TZ=Asia/Seoul
 ARG USERNAME=vscode
