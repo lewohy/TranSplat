@@ -6,6 +6,7 @@
         "dockerfile": "Dockerfile",
         "context": ".."
     },
+    "shutdownAction": "none",
     "runArgs": ["--gpus=all", "--ipc=host"],
     // uv runs at container runtime, so its cache and managed Pythons live in named volumes that survive container rebuilds.
     // Volumes are keyed by the host user so users with different UIDs on a shared Docker daemon don't collide; the cache is shared across that user's devcontainers.
