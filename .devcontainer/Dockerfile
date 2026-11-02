@@ -24,12 +24,14 @@ ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=1000
 
+# TYPST_FONT_PATHS: typst/tinymist do not look in the nix env, so point them at its fonts (Korean: pretendard).
 ENV TZ=${TZ} \
     TZDIR=/opt/transplat-env/share/zoneinfo \
     LANG=C.UTF-8 \
     COLORTERM=truecolor \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     CLAUDE_CONFIG_DIR=/home/vscode/.config/claude \
+    TYPST_FONT_PATHS=/opt/transplat-env/share/fonts \
     PATH=/opt/transplat-env/bin:${PATH}
 
 # Host toolchain for the CUDA extensions and native libraries loaded by open3d/opencv; these must match the Ubuntu glibc, so they come from apt.

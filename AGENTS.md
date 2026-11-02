@@ -49,7 +49,7 @@ TranSplat(arXiv 2503.22676, 본 저장소)의 한계 중 하나인 **고주파(�
 
 oracle 오염 원인과 수정 (2026-11-02 확인):
 - robust radius 밖 floater가 그림자맵 카메라와 물체 사이를 막음 → 이 study의 그림자맵에서 제외 (`--keep-floaters`로 끔). `pipe*` 행은 phase 1 그대로.
-- floater로 scene radius 9배 과대 → opaque 점 99.5% 분위수 × 1.1.
+- floater로 scene radius 약 7배 과대 (lego: 13.9 vs 1.9) → opaque 점 99.5% 분위수 × 1.1.
 - surfel normal 부호가 임의(약 48%가 뒤집힘) → 학습 카메라 투표로 방향 결정. up 축도 카메라에서 자동 추정.
 - 내부 surfel 층이 가림으로 판정됨 → 2개 이상 학습 뷰에서 보이고 렌더 표면 0.5px 이내인 점만 평가.
 - texel 단위 bias는 겹친 surfel에서 acne → normal 방향으로 2×max_scale 오프셋.
@@ -100,7 +100,9 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
 - 합성 환경맵(균일 ambient + 원판) 기준이다. 실제 HDR에서는 광원 분리 후 남는 부분이 균일하지 않아 hybrid의 ambient 오차가 커질 수 있다. 저장소에 실제 HDR은 없다.
 
 ### 3.5 발표 자료 (2026-11-02)
-- `report/experiment-001/report.typ`: 연구실 공유용 슬라이드 11장 (배경 → 질문 A/B/C → 방법 → 결과 → 해석 → 광원 분리 → 결론·한계).
+- `report/experiment-001/report.typ`: 연구미팅용 슬라이드 13장 (TranSplat 그림자 단계 → 문제 → 질문 A/B/C → 실험 조건·지표 → A 정답 계산 문제 5개와 수정 결과 → B → C·메모리 환산 → 결과 분석 → 광원 분리 → 결론·한계). 5번 슬라이드 오른쪽은 lego 사진 자리(비워 둠). 답 강조는 `verdict` 컴포넌트.
+  - 정답 계산 문제 중 1(장면 크기), 2(normal 부호), 5(잡티)는 `radiance_transfer_TranSplat.py`에도 그대로 있다.
+  - 메모리는 실험에서 직접 재지 않았고 계수 수로 환산했다 (fp32, Haar 위치 4바이트 가정. lego 97.5만 개 기준 SH256 ≈ Haar128 ≈ 1.0 GB).
 - `report/experiment-001/demo.html`: 한 점의 가림 지도를 SH / Haar로 압축해 비교하는 브라우저 데모 (실험과 같은 cube 64, top-k Haar, l≤15 SH).
 - 데모로 확인한 경향 (합성 장면, 추세만 참고): 표면 기울기 0°(가림 경계가 cube 격자와 나란함)에서는 Haar가 같은 개수 기준 2~2.7배 낫고, 25° 이상 기울면 0.6~1.4배로 이점이 사라진다. 같은 메모리 기준은 대부분 1 이하. 3.4의 "곡선 경계에서 Haar 비효율" 해석과 맞는다.
 
@@ -138,7 +140,10 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
   - zellij 웹 클라이언트: `postStartCommand`로 컨테이너 loopback `127.0.0.1:8082`에 띄우고 `forwardPorts`로 호스트 localhost에 노출. loopback 외 바인딩은 zellij가 TLS 인증서를 요구해서 이렇게 했다. `forwardPorts`는 VS Code 등 포워딩을 지원하는 클라이언트로 컨테이너를 열었을 때만 동작한다.
   - 로그인 토큰은 `zellij web --create-token`, `~/.local/share/zellij`(named volume)에 저장되어 재빌드 후에도 유지.
   - zellij 0.45.1은 config 파일이 없으면 웹 서버가 "started"를 출력하고도 listen하지 않는다 → 설정을 `.devcontainer/zellij/config.kdl`에서 이미지에 복사.
-- 컨테이너에 한글 폰트가 없다. Typst 미리보기는 Pretendard OTF를 받아 `typst compile --font-path <폰트 폴더>`로 컴파일했다 (2026-11-02). 폰트는 저장소에 넣지 않았다.
+- 한글 폰트: `flake.nix`에 `pretendard`(nixpkgs, `share/fonts/opentype`)를 넣고 Dockerfile ENV에 `TYPST_FONT_PATHS=/opt/transplat-env/share/fonts`를 둔다 (2026-11-02, 컨테이너 재빌드 후 반영).
+  - typst/tinymist는 nix env 경로를 시스템 폰트로 찾지 않아 이 ENV가 필요하다. typst CLI와 `tinymist lsp` 모두 `TYPST_FONT_PATHS`를 읽고, buildEnv의 심볼릭 링크도 따라간다 (임시 폴더로 확인).
+  - fontconfig 기반 프로그램(브라우저, matplotlib 등)은 이 경로를 모른다. 필요하면 fontconfig 설정을 따로 추가해야 한다.
+  - 재빌드 전에는 Pretendard OTF를 받아 `--font-path`로 지정해 컴파일했다.
 - 컨테이너에 브라우저/node가 없다. HTML 확인은 scratch에 playwright Chromium을 받고, 부족한 공유 라이브러리를 `apt-get download`(사용자 경로 apt lists)로 받아 `LD_LIBRARY_PATH`로 지정해 headless 실행했다.
 - 이 컨테이너 안에서 `nix build`는 권한 오류로 안 된다 (2026-10-28 기준. flake 변경은 컨테이너 재빌드로 반영).
 - `git`은 소유자 불일치로 `git -c safe.directory='*' ...` 형태로 실행해야 한다.

@@ -25,6 +25,10 @@
             fish
             git
             jq
+            pretendard
+            tinymist
+            typst
+            typstyle
             tzdata.out
             uv
             zellij

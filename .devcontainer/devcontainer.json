@@ -44,7 +44,8 @@
                 "ms-python.python",
                 "charliermarsh.ruff",
                 "tamasfe.even-better-toml",
-                "ms-python.vscode-pylance"
+                "ms-python.vscode-pylance",
+                "myriad-dreamin.tinymist"
             ],
             "settings": {
                 "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python",
