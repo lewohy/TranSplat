@@ -3,6 +3,13 @@
 
 default_shell "fish"
 
+// Replaced by the detach/quit hint in greeting.fish.
+show_release_notes false
+show_startup_tips false
+
+// Closing the terminal window (SIGHUP) keeps the session running.
+on_force_close "detach"
+
 // The web client listens only on the container's loopback; reach it through the forwarded port 8082 (see devcontainer.json).
 // Login uses tokens created with `zellij web --create-token`, stored in ~/.local/share/zellij (a named volume).
 web_server_ip "127.0.0.1"
