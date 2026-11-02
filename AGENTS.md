@@ -113,6 +113,10 @@ C. 같은 계수 수의 Haar vs SH (ratio = SH/Haar, >1이면 Haar가 나음)
   - 이전 환경(Python 3.8 + torch 2.0.0+cu118)은 sm_120 커널이 없어 5080에서 어떤 CUDA 연산도 실패했다.
 - 검증(2026-11-02, 컨테이너 재빌드 전): NVIDIA redist 아카이브로 CUDA 12.8 툴킷을 임시로 구성하고 `UV_PROJECT_ENVIRONMENT`를 다른 경로로 둔 채 `uv sync`. 확장 3개에 sm_86/89/120 SASS가 포함됨, 5080에서 knn·surfel 렌더·backward 정상, `--self-test` 통과, lego 축소 실행 정상 종료. 3070/4060 Ti 실기기 실행은 아직 확인하지 않았다.
 - 컨테이너를 재빌드하기 전에는 `/usr/local/cuda`가 11.8이라 이 컨테이너 안에서 `uv sync`가 확장 빌드에서 실패한다. 재빌드 후 `uv sync`를 실행하면 `.venv`가 3.10으로 다시 만들어진다.
+- 별도 셸 접근 (2026-11-02 추가, 컨테이너 재빌드 후 반영): 호스트의 repo 루트에서 `npx @devcontainers/cli exec --workspace-folder . zellij attach --create main` (전역 설치했다면 `devcontainer exec ...`). VS Code로 연 컨테이너에도 그대로 붙는다.
+  - zellij 웹 클라이언트: `postStartCommand`로 컨테이너 loopback `127.0.0.1:8082`에 띄우고 `forwardPorts`로 호스트 localhost에 노출. loopback 외 바인딩은 zellij가 TLS 인증서를 요구해서 이렇게 했다. `forwardPorts`는 VS Code 등 포워딩을 지원하는 클라이언트로 컨테이너를 열었을 때만 동작한다.
+  - 로그인 토큰은 `zellij web --create-token`, `~/.local/share/zellij`(named volume)에 저장되어 재빌드 후에도 유지.
+  - zellij 0.45.1은 config 파일이 없으면 웹 서버가 "started"를 출력하고도 listen하지 않는다 → 설정을 `.devcontainer/zellij/config.kdl`에서 이미지에 복사.
 - 이 컨테이너 안에서 `nix build`는 권한 오류로 안 된다 (2026-10-28 기준. flake 변경은 컨테이너 재빌드로 반영).
 - `git`은 소유자 불일치로 `git -c safe.directory='*' ...` 형태로 실행해야 한다.
 - 커밋 메시지: 기능 단위로 분리, 짧은 한국어 제목, 상세는 본문.

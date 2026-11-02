@@ -13,6 +13,8 @@
     "mounts": [
         "source=uv-cache-${localEnv:USER},target=/home/vscode/.cache/uv,type=volume",
         "source=transplat-uv-data-${localEnv:USER},target=/home/vscode/.local/share/uv,type=volume",
+        // zellij web login tokens (tokens.db) survive container rebuilds.
+        "source=transplat-zellij-data-${localEnv:USER},target=/home/vscode/.local/share/zellij,type=volume",
         // Share Claude Code session history and memory with the host; the source directory must exist on the host.
         "source=${localEnv:HOME}/.config/claude/projects,target=/home/vscode/.config/claude/projects,type=bind"
     ],
@@ -22,6 +24,15 @@
     "remoteUser": "vscode",
     // -n keeps files Claude Code has already rewritten at runtime (e.g. .claude.json) instead of resetting them.
     "postCreateCommand": "git config --global --add safe.directory '*' && git config core.fileMode false && cp -rn .devcontainer/claude-config/. \"$CLAUDE_CONFIG_DIR\"/",
+    // The zellij web client binds to the container's loopback only; the forwarded port exposes it on the host's localhost.
+    "postStartCommand": "zellij web --daemonize",
+    "forwardPorts": [8082],
+    "portsAttributes": {
+        "8082": {
+            "label": "zellij web",
+            "onAutoForward": "silent"
+        }
+    },
     "customizations": {
         "vscode": {
             "extensions": [

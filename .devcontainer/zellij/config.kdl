@@ -1,0 +1,12 @@
+// Copied to ~/.config/zellij/config.kdl at image build time; rebuild the container after editing.
+// Run `zellij setup --dump-config` inside the container for the full list of options.
+
+default_shell "fish"
+
+// The web client listens only on the container's loopback; reach it through the forwarded port 8082 (see devcontainer.json).
+// Login uses tokens created with `zellij web --create-token`, stored in ~/.local/share/zellij (a named volume).
+web_server_ip "127.0.0.1"
+web_server_port 8082
+
+// Let sessions started from a terminal (e.g. via `devcontainer exec`) be attached from the browser as well.
+web_sharing "on"

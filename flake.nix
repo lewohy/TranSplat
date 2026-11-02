@@ -27,6 +27,7 @@
             jq
             tzdata.out
             uv
+            zellij
           ];
         in {
           inherit pkgs toolPackages;

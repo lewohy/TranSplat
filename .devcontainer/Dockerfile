@@ -51,8 +51,10 @@ RUN ln -snf "${TZDIR}/${TZ}" /etc/localtime \
     && groupadd --gid "${USER_GID}" "${USERNAME}" \
     && useradd --uid "${USER_UID}" --gid "${USER_GID}" --create-home \
         --shell /opt/transplat-env/bin/fish "${USERNAME}" \
-    && mkdir -p /home/${USERNAME}/.cache/uv /home/${USERNAME}/.config/claude/projects /home/${USERNAME}/.local/share/uv \
+    && mkdir -p /home/${USERNAME}/.cache/uv /home/${USERNAME}/.config/claude/projects /home/${USERNAME}/.local/share/uv /home/${USERNAME}/.local/share/zellij \
     && chown -R "${USERNAME}:${USERNAME}" /home/${USERNAME}
+
+COPY --chown=${USERNAME}:${USERNAME} .devcontainer/zellij/config.kdl /home/${USERNAME}/.config/zellij/config.kdl
 
 USER ${USERNAME}
 
