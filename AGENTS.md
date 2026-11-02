@@ -99,6 +99,11 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
 - 2048px hybrid 오차는 같은 해상도 oracle 대비라 해상도 오차가 빠져 있다 (실제는 res2x 수준 0.02~0.09가 더해질 수 있음).
 - 합성 환경맵(균일 ambient + 원판) 기준이다. 실제 HDR에서는 광원 분리 후 남는 부분이 균일하지 않아 hybrid의 ambient 오차가 커질 수 있다. 저장소에 실제 HDR은 없다.
 
+### 3.5 발표 자료 (2026-11-02)
+- `report/experiment-001/report.typ`: 연구실 공유용 슬라이드 11장 (배경 → 질문 A/B/C → 방법 → 결과 → 해석 → 광원 분리 → 결론·한계).
+- `report/experiment-001/demo.html`: 한 점의 가림 지도를 SH / Haar로 압축해 비교하는 브라우저 데모 (실험과 같은 cube 64, top-k Haar, l≤15 SH).
+- 데모로 확인한 경향 (합성 장면, 추세만 참고): 표면 기울기 0°(가림 경계가 cube 격자와 나란함)에서는 Haar가 같은 개수 기준 2~2.7배 낫고, 25° 이상 기울면 0.6~1.4배로 이점이 사라진다. 같은 메모리 기준은 대부분 1 이하. 3.4의 "곡선 경계에서 Haar 비효율" 해석과 맞는다.
+
 ## 4. 다음 할 일
 
 방향 제안 (사용자 확인 필요): wavelet 대신 **쉬운 수정 + 광원 분리 hybrid**.
@@ -133,6 +138,8 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
   - zellij 웹 클라이언트: `postStartCommand`로 컨테이너 loopback `127.0.0.1:8082`에 띄우고 `forwardPorts`로 호스트 localhost에 노출. loopback 외 바인딩은 zellij가 TLS 인증서를 요구해서 이렇게 했다. `forwardPorts`는 VS Code 등 포워딩을 지원하는 클라이언트로 컨테이너를 열었을 때만 동작한다.
   - 로그인 토큰은 `zellij web --create-token`, `~/.local/share/zellij`(named volume)에 저장되어 재빌드 후에도 유지.
   - zellij 0.45.1은 config 파일이 없으면 웹 서버가 "started"를 출력하고도 listen하지 않는다 → 설정을 `.devcontainer/zellij/config.kdl`에서 이미지에 복사.
+- 컨테이너에 한글 폰트가 없다. Typst 미리보기는 Pretendard OTF를 받아 `typst compile --font-path <폰트 폴더>`로 컴파일했다 (2026-11-02). 폰트는 저장소에 넣지 않았다.
+- 컨테이너에 브라우저/node가 없다. HTML 확인은 scratch에 playwright Chromium을 받고, 부족한 공유 라이브러리를 `apt-get download`(사용자 경로 apt lists)로 받아 `LD_LIBRARY_PATH`로 지정해 headless 실행했다.
 - 이 컨테이너 안에서 `nix build`는 권한 오류로 안 된다 (2026-10-28 기준. flake 변경은 컨테이너 재빌드로 반영).
 - `git`은 소유자 불일치로 `git -c safe.directory='*' ...` 형태로 실행해야 한다.
 - 커밋 메시지: 기능 단위로 분리, 짧은 한국어 제목, 상세는 본문.

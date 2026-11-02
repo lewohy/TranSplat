@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>그림자 압축 데모</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f6f5f2;
+  --surface-1: #fcfcfb;
+  --border: #e4e3df;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #8a8984;
+  --series-truth: #0b0b0b;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --accent-bg: #e8f1fc;
+  --map-dark: #34332f;
+  --map-light: #f1f0ec;
+  --ring-low: #4a3aa7;
+  --ring-high: #1baf7a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #121211;
+    --surface-1: #1a1a19;
+    --border: #383835;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #8f8e86;
+    --series-truth: #ffffff;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --accent-bg: #1c2a3d;
+    --map-dark: #0f0f0e;
+    --map-light: #d9d8d2;
+    --ring-low: #9085e9;
+    --ring-high: #199e70;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211;
+  --surface-1: #1a1a19;
+  --border: #383835;
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted: #8f8e86;
+  --series-truth: #ffffff;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --accent-bg: #1c2a3d;
+  --map-dark: #0f0f0e;
+  --map-light: #d9d8d2;
+  --ring-low: #9085e9;
+  --ring-high: #199e70;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font: 14px/1.5 Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
+main { max-width: 1180px; margin: 0 auto; padding: 28px 20px 40px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+.hint { color: var(--text-secondary); margin: 0 0 18px; }
+.controls {
+  display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 16px; margin-bottom: 16px;
+}
+.ctl { display: flex; align-items: center; gap: 10px; }
+.ctl > span { color: var(--text-secondary); font-size: 13px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+.seg button {
+  font: inherit; font-size: 13px; padding: 5px 12px; border: 0; background: transparent;
+  color: var(--text-secondary); cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-pressed="true"] { background: var(--accent-bg); color: var(--text-primary); font-weight: 600; }
+input[type=range] { width: 130px; accent-color: var(--series-1); }
+output { font-variant-numeric: tabular-nums; min-width: 2.6em; display: inline-block; font-weight: 600; }
+.maps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.map { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+.map h2 { font-size: 14px; margin: 0 0 6px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.map h2 small { color: var(--text-muted); font-weight: 400; font-size: 12px; }
+.map canvas { width: 100%; aspect-ratio: 2 / 1; display: block; border-radius: 6px; cursor: crosshair; touch-action: none; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; box-shadow: inset 0 0 0 1px var(--border); vertical-align: -1px; margin-right: 4px; }
+.key { color: var(--text-muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 14px; margin: -6px 0 16px; }
+.bottom { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 12px; }
+.panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.panel h2 { font-size: 14px; margin: 0 0 4px; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+.legend i { display: inline-block; width: 14px; height: 2px; vertical-align: 4px; margin-right: 5px; }
+#chart { width: 100%; height: 260px; display: block; touch-action: none; }
+#chart .grid line { stroke: var(--border); }
+#chart text { fill: var(--text-muted); font-size: 11px; }
+.stats { display: flex; flex-direction: column; gap: 10px; }
+.stat { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+.stat .label { color: var(--text-secondary); font-size: 12px; }
+.stat .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat .sub { color: var(--text-muted); font-size: 11px; }
+.tip {
+  position: fixed; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12);
+  font-variant-numeric: tabular-nums;
+}
+.tip div { display: flex; justify-content: space-between; gap: 14px; }
+@media (max-width: 820px) {
+  .maps { grid-template-columns: 1fr; }
+  .bottom { grid-template-columns: 1fr; }
+  .stats { flex-direction: row; flex-wrap: wrap; }
+  .stat { flex: 1 1 140px; }
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>그림자 압축 데모</h1>
+  <p class="hint">한 점에서 본 하늘 지도입니다. 지도를 드래그해 광원을 옮겨 보세요.</p>
+
+  <div class="controls">
+    <div class="ctl"><span>저장 개수</span>
+      <div class="seg" id="kSeg">
+        <button data-k="16" aria-pressed="true">16</button>
+        <button data-k="64" aria-pressed="false">64</button>
+        <button data-k="256" aria-pressed="false">256</button>
+      </div>
+    </div>
+    <div class="ctl"><span>비교 기준</span>
+      <div class="seg" id="modeSeg">
+        <button data-mode="count" aria-pressed="true">같은 개수</button>
+        <button data-mode="memory" aria-pressed="false">같은 메모리</button>
+      </div>
+    </div>
+    <label class="ctl"><span>광원 크기</span>
+      <input id="size" type="range" min="3" max="30" step="1" value="6"><output id="sizeOut"></output></label>
+    <label class="ctl"><span>표면 기울기</span>
+      <input id="tilt" type="range" min="0" max="60" step="1" value="25"><output id="tiltOut"></output></label>
+  </div>
+
+  <div class="maps">
+    <div class="map"><h2>실제 가림 <small>압축 없음</small></h2><canvas id="mTrue" width="360" height="180"></canvas></div>
+    <div class="map"><h2>SH <small id="shLabel"></small></h2><canvas id="mSH" width="360" height="180"></canvas></div>
+    <div class="map"><h2>Wavelet (Haar) <small id="haarLabel"></small></h2><canvas id="mHaar" width="360" height="180"></canvas></div>
+  </div>
+  <div class="key">
+    <span><span class="swatch" style="background:var(--map-light)"></span>보임</span>
+    <span><span class="swatch" style="background:var(--map-dark)"></span>가려짐</span>
+    <span><span class="swatch" style="background:var(--ring-low)"></span>0 미만 (압축 잔물결)</span>
+    <span><span class="swatch" style="background:var(--ring-high)"></span>1 초과</span>
+    <span>◯ 광원</span>
+    <span>가로: 방위각 0~360° · 세로: 고도 (위가 하늘)</span>
+  </div>
+
+  <div class="bottom">
+    <div class="panel">
+      <h2>광원을 같은 높이에서 한 바퀴 돌릴 때, 이 점의 밝기</h2>
+      <div class="legend">
+        <span><i style="background:var(--series-truth)"></i>실제</span>
+        <span><i style="background:var(--series-1)"></i>SH</span>
+        <span><i style="background:var(--series-2)"></i>Wavelet</span>
+      </div>
+      <svg id="chart" role="img" aria-label="광원 방위각에 따른 밝기"></svg>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="label">SH 평균 오차</div><div class="value" id="errSH">-</div><div class="sub">최대 밝기 대비</div></div>
+      <div class="stat"><div class="label">Wavelet 평균 오차</div><div class="value" id="errHaar">-</div><div class="sub">최대 밝기 대비</div></div>
+      <div class="stat"><div class="label">SH ÷ Wavelet</div><div class="value" id="ratio">-</div><div class="sub">1보다 크면 wavelet이 나음</div></div>
+    </div>
+  </div>
+</main>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------------------
+// Direction grid: cube map, R x R texels per face (the experiment used 64).
+// ---------------------------------------------------------------------------
+const R = 64, NT = 6 * R * R, LMAX = 15, NSH = (LMAX + 1) ** 2, SUB = 4;
+const AX = [[2, 1], [2, 0], [1, 0]];
+const DEG = Math.PI / 180;
+const dirs = new Float64Array(NT * 3), wts = new Float64Array(NT);
+const subDirs = new Float32Array(NT * SUB * SUB * 3);
+{
+  let wsum = 0;
+  for (let f = 0; f < 6; f++) {
+    const a = f >> 1, s = f & 1 ? -1 : 1, [r, c] = AX[a];
+    for (let i = 0; i < R; i++) for (let j = 0; j < R; j++) {
+      const t = (f * R + i) * R + j, d = [0, 0, 0];
+      d[a] = s; d[r] = (i + 0.5) / R * 2 - 1; d[c] = (j + 0.5) / R * 2 - 1;
+      const n = Math.hypot(d[0], d[1], d[2]);
+      for (let k = 0; k < 3; k++) dirs[t * 3 + k] = d[k] / n;
+      wts[t] = n ** -3; wsum += wts[t];
+      for (let si = 0; si < SUB; si++) for (let sj = 0; sj < SUB; sj++) {
+        const e = [0, 0, 0];
+        e[a] = s; e[r] = (i + (si + 0.5) / SUB) / R * 2 - 1; e[c] = (j + (sj + 0.5) / SUB) / R * 2 - 1;
+        const m = Math.hypot(e[0], e[1], e[2]), o = ((t * SUB + si) * SUB + sj) * 3;
+        for (let k = 0; k < 3; k++) subDirs[o + k] = e[k] / m;
+      }
+    }
+  }
+  for (let t = 0; t < NT; t++) wts[t] *= 4 * Math.PI / wsum;
+}
+const wMean = 4 * Math.PI / NT;
+const sqw = Float64Array.from(wts, w => Math.sqrt(w / wMean));
+
+function lookup(x, y, z) {
+  const d = [x, y, z], ad = d.map(Math.abs);
+  const a = ad[0] >= ad[1] && ad[0] >= ad[2] ? 0 : ad[1] >= ad[2] ? 1 : 2;
+  const [r, c] = AX[a], m = ad[a], f = 2 * a + (d[a] < 0 ? 1 : 0);
+  const i = Math.min(R - 1, Math.max(0, Math.floor((d[r] / m + 1) / 2 * R)));
+  const j = Math.min(R - 1, Math.max(0, Math.floor((d[c] / m + 1) / 2 * R)));
+  return (f * R + i) * R + j;
+}
+const dirOf = (az, el) => [Math.cos(el) * Math.cos(az), Math.cos(el) * Math.sin(az), Math.sin(el)];
+
+// ---------------------------------------------------------------------------
+// Real spherical harmonics up to l = 15 at every texel.
+// ---------------------------------------------------------------------------
+const Y = new Float32Array(NT * NSH);
+{
+  const fact = [1]; for (let i = 1; i <= 2 * LMAX + 1; i++) fact[i] = fact[i - 1] * i;
+  const K = (l, m) => Math.sqrt((2 * l + 1) / (4 * Math.PI) * fact[l - m] / fact[l + m]);
+  const P = new Float64Array((LMAX + 1) * (LMAX + 1));
+  for (let t = 0; t < NT; t++) {
+    const x = dirs[t * 3], y = dirs[t * 3 + 1], z = dirs[t * 3 + 2];
+    const st = Math.sqrt(Math.max(0, 1 - z * z)), phi = Math.atan2(y, x);
+    let pmm = 1;
+    for (let m = 0; m <= LMAX; m++) {
+      if (m > 0) pmm *= -(2 * m - 1) * st;
+      P[m * (LMAX + 1) + m] = pmm;
+      if (m < LMAX) P[(m + 1) * (LMAX + 1) + m] = z * (2 * m + 1) * pmm;
+      for (let l = m + 2; l <= LMAX; l++)
+        P[l * (LMAX + 1) + m] = ((2 * l - 1) * z * P[(l - 1) * (LMAX + 1) + m] - (l + m - 1) * P[(l - 2) * (LMAX + 1) + m]) / (l - m);
+    }
+    const o = t * NSH;
+    for (let l = 0; l <= LMAX; l++) {
+      Y[o + l * l + l] = K(l, 0) * P[l * (LMAX + 1)];
+      for (let m = 1; m <= l; m++) {
+        const v = Math.SQRT2 * K(l, m) * P[l * (LMAX + 1) + m];
+        Y[o + l * l + l + m] = v * Math.cos(m * phi);
+        Y[o + l * l + l - m] = v * Math.sin(m * phi);
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Orthonormal 2D Haar per face (Mallat layout), nonlinear top-k.
+// ---------------------------------------------------------------------------
+const tmp = new Float64Array(R * R);
+function haarFwd(x, o) {
+  for (let n = R; n > 1; n >>= 1) {
+    const h = n >> 1;
+    for (let i = 0; i < h; i++) for (let j = 0; j < h; j++) {
+      const a = x[o + 2 * i * R + 2 * j], b = x[o + 2 * i * R + 2 * j + 1];
+      const c = x[o + (2 * i + 1) * R + 2 * j], d = x[o + (2 * i + 1) * R + 2 * j + 1];
+      tmp[i * R + j] = (a + b + c + d) / 2; tmp[i * R + j + h] = (a - b + c - d) / 2;
+      tmp[(i + h) * R + j] = (a + b - c - d) / 2; tmp[(i + h) * R + j + h] = (a - b - c + d) / 2;
+    }
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) x[o + i * R + j] = tmp[i * R + j];
+  }
+}
+function haarInv(x, o) {
+  for (let n = 2; n <= R; n <<= 1) {
+    const h = n >> 1;
+    for (let i = 0; i < h; i++) for (let j = 0; j < h; j++) {
+      const s = x[o + i * R + j], p = x[o + i * R + j + h], q = x[o + (i + h) * R + j], r = x[o + (i + h) * R + j + h];
+      tmp[2 * i * R + 2 * j] = (s + p + q + r) / 2; tmp[2 * i * R + 2 * j + 1] = (s - p + q - r) / 2;
+      tmp[(2 * i + 1) * R + 2 * j] = (s + p - q - r) / 2; tmp[(2 * i + 1) * R + 2 * j + 1] = (s - p - q + r) / 2;
+    }
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) x[o + i * R + j] = tmp[i * R + j];
+  }
+}
+function haarTopK(V, k) {
+  const c = Float64Array.from(V, (v, t) => v * sqw[t]);
+  for (let f = 0; f < 6; f++) haarFwd(c, f * R * R);
+  const mags = Float64Array.from(c, Math.abs).sort();
+  const thr = mags[NT - k];
+  let kept = 0;
+  for (let t = 0; t < NT; t++) {
+    if (Math.abs(c[t]) >= thr && kept < k) kept++; else c[t] = 0;
+  }
+  for (let f = 0; f < 6; f++) haarInv(c, f * R * R);
+  for (let t = 0; t < NT; t++) c[t] /= sqw[t];
+  return c;
+}
+function shApprox(V, k) {
+  const coef = new Float64Array(k);
+  for (let t = 0; t < NT; t++) {
+    const v = V[t] * wts[t]; if (!v) continue;
+    const o = t * NSH;
+    for (let q = 0; q < k; q++) coef[q] += v * Y[o + q];
+  }
+  const out = new Float64Array(NT);
+  for (let t = 0; t < NT; t++) {
+    let s = 0; const o = t * NSH;
+    for (let q = 0; q < k; q++) s += coef[q] * Y[o + q];
+    out[t] = s;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Scene: a surface point with a tilted normal, a wall, a post and two round occluders.
+// ---------------------------------------------------------------------------
+const OCC_CAPS = [[200, 20, 14], [292, 52, 7]].map(([az, el, r]) => [dirOf(az * DEG, el * DEG), Math.cos(r * DEG)]);
+function blocked(x, y, z) {
+  const el = Math.asin(Math.max(-1, Math.min(1, z))) / DEG;
+  let az = Math.atan2(y, x) / DEG; if (az < 0) az += 360;
+  if (az > 40 && az < 110 && el < 35) return true;
+  if (az > 150 && az < 158 && el < 62) return true;
+  for (const [c, cr] of OCC_CAPS) if (x * c[0] + y * c[1] + z * c[2] > cr) return true;
+  return false;
+}
+const AMBIENT = 0.2, SUN = 3.0;
+const state = { k: 16, mode: "count", size: 6, tilt: 25, az: 100, el: 18 };
+let normal, cosW, Vtrue, Vsh, Vhaar, sweep;
+
+function computeVisibility() {
+  const t = state.tilt * DEG;
+  normal = [0, -Math.sin(t), Math.cos(t)];
+  cosW = new Float64Array(NT); Vtrue = new Float64Array(NT);
+  for (let i = 0; i < NT; i++) {
+    const x = dirs[i * 3], y = dirs[i * 3 + 1], z = dirs[i * 3 + 2];
+    const c = x * normal[0] + y * normal[1] + z * normal[2];
+    cosW[i] = Math.max(c, 0);
+    Vtrue[i] = c > 0 && !blocked(x, y, z) ? 1 : 0;
+  }
+}
+function computeApprox() {
+  Vsh = shApprox(Vtrue, state.k);
+  Vhaar = haarTopK(Vtrue, haarCount());
+}
+const haarCount = () => state.mode === "memory" ? state.k / 2 : state.k;
+
+// Disc coverage per texel (4x4 subsamples), renormalised to the exact cap solid angle.
+function discTerms(az, el) {
+  const c = dirOf(az * DEG, el * DEG), r = state.size / 2 * DEG;
+  const cr = Math.cos(r), pad = Math.cos(r + 2.2 * DEG);
+  const idx = [], cov = [];
+  let sum = 0;
+  for (let t = 0; t < NT; t++) {
+    if (dirs[t * 3] * c[0] + dirs[t * 3 + 1] * c[1] + dirs[t * 3 + 2] * c[2] < pad) continue;
+    let n = 0;
+    for (let s = 0; s < SUB * SUB; s++) {
+      const o = (t * SUB * SUB + s) * 3;
+      if (subDirs[o] * c[0] + subDirs[o + 1] * c[1] + subDirs[o + 2] * c[2] >= cr) n++;
+    }
+    if (n) { idx.push(t); cov.push(n / (SUB * SUB)); sum += n / (SUB * SUB) * wts[t]; }
+  }
+  const scale = sum > 0 ? 2 * Math.PI * (1 - cr) / sum : 0;
+  return { idx, cov: cov.map(v => v * scale), radiance: SUN / (Math.PI * Math.sin(r) ** 2) };
+}
+function irradiance(V, ambientPart, disc) {
+  let e = ambientPart;
+  for (let q = 0; q < disc.idx.length; q++) {
+    const t = disc.idx[q];
+    e += disc.radiance * disc.cov[q] * wts[t] * V[t] * cosW[t];
+  }
+  return e;
+}
+const ambientOf = V => { let s = 0; for (let t = 0; t < NT; t++) s += V[t] * cosW[t] * wts[t]; return AMBIENT * s; };
+
+function computeSweep() {
+  const a = [ambientOf(Vtrue), ambientOf(Vsh), ambientOf(Vhaar)];
+  const az = [], e = [[], [], []];
+  for (let x = 0; x <= 360; x += 2) {
+    const d = discTerms(x, state.el);
+    az.push(x);
+    [Vtrue, Vsh, Vhaar].forEach((V, i) => e[i].push(irradiance(V, a[i], d)));
+  }
+  sweep = { az, e };
+}
+
+// ---------------------------------------------------------------------------
+// Drawing
+// ---------------------------------------------------------------------------
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const lerp = (p, q, s) => p.map((v, i) => v + (q[i] - v) * s);
+const W = 360, H = 180;
+const pix = new Int32Array(W * H);
+for (let py = 0; py < H; py++) for (let px = 0; px < W; px++) {
+  const d = dirOf((px + 0.5) / W * 360 * DEG, (90 - (py + 0.5) / H * 180) * DEG);
+  pix[py * W + px] = lookup(d[0], d[1], d[2]);
+}
+const canvases = { mTrue: () => Vtrue, mSH: () => Vsh, mHaar: () => Vhaar };
+
+function drawMaps() {
+  const dark = hex(css("--map-dark")), light = hex(css("--map-light"));
+  const lo = hex(css("--ring-low")), hi = hex(css("--ring-high"));
+  const ink = css("--text-primary");
+  for (const [id, get] of Object.entries(canvases)) {
+    const cv = document.getElementById(id), ctx = cv.getContext("2d"), V = get();
+    const img = ctx.createImageData(W, H);
+    for (let p = 0; p < W * H; p++) {
+      const v = V[pix[p]];
+      const col = v < 0 ? lerp(dark, lo, Math.min(1, -v * 4)) : v > 1 ? lerp(light, hi, Math.min(1, (v - 1) * 4)) : lerp(dark, light, v);
+      img.data.set([col[0], col[1], col[2], 255], p * 4);
+    }
+    ctx.putImageData(img, 0, 0);
+    // light outline
+    const c = dirOf(state.az * DEG, state.el * DEG), r = Math.max(state.size / 2, 3) * DEG;
+    const up = Math.abs(c[2]) < 0.95 ? [0, 0, 1] : [1, 0, 0];
+    const u = norm(cross(up, c)), w = cross(c, u);
+    ctx.beginPath();
+    let prev = null;
+    for (let s = 0; s <= 64; s++) {
+      const th = s / 64 * 2 * Math.PI, k = [0, 1, 2].map(i => Math.cos(r) * c[i] + Math.sin(r) * (Math.cos(th) * u[i] + Math.sin(th) * w[i]));
+      let az = Math.atan2(k[1], k[0]) / DEG; if (az < 0) az += 360;
+      const x = az / 360 * W, y = (90 - Math.asin(k[2]) / DEG) / 180 * H;
+      if (prev === null || Math.abs(x - prev) > W / 2) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      prev = x;
+    }
+    ctx.lineWidth = 4; ctx.strokeStyle = "#ffffff"; ctx.stroke();
+    ctx.lineWidth = 2; ctx.strokeStyle = "#0b0b0b"; ctx.stroke();
+    ctx.fillStyle = ink; ctx.globalAlpha = 0.35;
+    const y0 = (90 - state.el) / 180 * H; ctx.fillRect(0, y0, W, 1);
+    ctx.globalAlpha = 1;
+  }
+}
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const norm = a => { const n = Math.hypot(...a); return a.map(v => v / n); };
+
+const svg = document.getElementById("chart");
+const NS = "http://www.w3.org/2000/svg";
+const M = { l: 40, r: 12, t: 10, b: 26 };
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  (parent || svg).appendChild(e); return e;
+}
+let chartGeom = null;
+function drawChart() {
+  const box = svg.getBoundingClientRect(), w = box.width, h = box.height;
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  svg.replaceChildren();
+  const ymax = Math.max(...sweep.e[0], ...sweep.e[1], ...sweep.e[2]) * 1.08 || 1;
+  const X = a => M.l + a / 360 * (w - M.l - M.r), Yp = v => h - M.b - v / ymax * (h - M.t - M.b);
+  chartGeom = { X, Yp, w, h };
+  const g = el("g", { class: "grid" });
+  const step = ymax > 2 ? 1 : ymax > 1 ? 0.5 : 0.25;
+  for (let v = 0; v <= ymax; v += step) {
+    el("line", { x1: M.l, x2: w - M.r, y1: Yp(v), y2: Yp(v) }, g);
+    el("text", { x: M.l - 6, y: Yp(v) + 4, "text-anchor": "end" }).textContent = v.toFixed(step < 1 ? 2 : 0);
+  }
+  for (let a = 0; a <= 360; a += 90) el("text", { x: X(a), y: h - 8, "text-anchor": "middle" }).textContent = a + "°";
+  el("line", { x1: X(state.az), x2: X(state.az), y1: M.t, y2: h - M.b, stroke: css("--text-muted"), "stroke-width": 1, "stroke-dasharray": "3 3" });
+  const colors = [css("--series-truth"), css("--series-1"), css("--series-2")];
+  [1, 2, 0].forEach(i => el("polyline", {
+    points: sweep.az.map((a, j) => `${X(a)},${Yp(sweep.e[i][j])}`).join(" "),
+    fill: "none", stroke: colors[i], "stroke-width": 2, "stroke-linejoin": "round",
+    "stroke-dasharray": i === 0 ? "5 3" : "none",
+  }));
+  el("line", { id: "xhair", x1: 0, x2: 0, y1: M.t, y2: h - M.b, stroke: css("--text-muted"), "stroke-width": 1, visibility: "hidden" });
+}
+
+function updateStats() {
+  const [t, s, hh] = sweep.e, peak = Math.max(...t);
+  const err = e => e.reduce((acc, v, i) => acc + Math.abs(v - t[i]), 0) / e.length / peak;
+  const es = err(s), eh = err(hh);
+  document.getElementById("errSH").textContent = (es * 100).toFixed(1) + "%";
+  document.getElementById("errHaar").textContent = (eh * 100).toFixed(1) + "%";
+  document.getElementById("ratio").textContent = (es / eh).toFixed(2);
+}
+function updateLabels() {
+  document.getElementById("shLabel").textContent = `${state.k}개`;
+  document.getElementById("haarLabel").textContent = `${haarCount()}개 + 위치`;
+  document.getElementById("sizeOut").textContent = state.size + "°";
+  document.getElementById("tiltOut").textContent = state.tilt + "°";
+}
+
+// ---------------------------------------------------------------------------
+// Update pipeline
+// ---------------------------------------------------------------------------
+let pending = { vis: true, approx: true, sweep: true }, raf = 0;
+function schedule(what) {
+  Object.assign(pending, what);
+  if (!raf) raf = requestAnimationFrame(render);
+}
+function render() {
+  raf = 0;
+  if (pending.vis) computeVisibility();
+  if (pending.vis || pending.approx) computeApprox();
+  if (pending.vis || pending.approx || pending.sweep) computeSweep();
+  pending = {};
+  updateLabels(); drawMaps(); drawChart(); updateStats();
+}
+
+document.querySelectorAll("#kSeg button").forEach(b => b.addEventListener("click", () => {
+  state.k = +b.dataset.k;
+  document.querySelectorAll("#kSeg button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  schedule({ approx: true });
+}));
+document.querySelectorAll("#modeSeg button").forEach(b => b.addEventListener("click", () => {
+  state.mode = b.dataset.mode;
+  document.querySelectorAll("#modeSeg button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  schedule({ approx: true });
+}));
+document.getElementById("size").addEventListener("input", e => { state.size = +e.target.value; schedule({ sweep: true }); });
+document.getElementById("tilt").addEventListener("input", e => { state.tilt = +e.target.value; schedule({ vis: true }); });
+
+for (const id of Object.keys(canvases)) {
+  const cv = document.getElementById(id);
+  const move = e => {
+    const b = cv.getBoundingClientRect();
+    const nx = Math.min(1, Math.max(0, (e.clientX - b.left) / b.width));
+    const ny = Math.min(1, Math.max(0, (e.clientY - b.top) / b.height));
+    const az = Math.round(nx * 360), elv = Math.round(Math.max(-30, Math.min(85, 90 - ny * 180)));
+    const elChanged = elv !== state.el;
+    state.az = az; state.el = elv;
+    schedule({ sweep: elChanged });
+  };
+  cv.addEventListener("pointerdown", e => { cv.setPointerCapture(e.pointerId); move(e); });
+  cv.addEventListener("pointermove", e => { if (cv.hasPointerCapture(e.pointerId)) move(e); });
+}
+
+const tip = document.getElementById("tip");
+function hover(e) {
+  if (!chartGeom) return;
+  const b = svg.getBoundingClientRect(), x = e.clientX - b.left;
+  const a = (x - M.l) / (chartGeom.w - M.l - M.r) * 360;
+  if (a < 0 || a > 360) return leave();
+  const j = Math.round(a / 2), az = sweep.az[j];
+  const xh = svg.querySelector("#xhair");
+  xh.setAttribute("x1", chartGeom.X(az)); xh.setAttribute("x2", chartGeom.X(az)); xh.setAttribute("visibility", "visible");
+  const names = ["실제", "SH", "Wavelet"], colors = [css("--series-truth"), css("--series-1"), css("--series-2")];
+  tip.innerHTML = `<div><b>방위각 ${az}°</b></div>` + names.map((n, i) =>
+    `<div><span><span class="swatch" style="background:${colors[i]}"></span>${n}</span><b>${sweep.e[i][j].toFixed(3)}</b></div>`).join("");
+  tip.hidden = false;
+  const tx = Math.min(window.innerWidth - tip.offsetWidth - 8, e.clientX + 14);
+  tip.style.left = tx + "px"; tip.style.top = (e.clientY - tip.offsetHeight - 10) + "px";
+}
+function leave() { tip.hidden = true; const xh = svg.querySelector("#xhair"); if (xh) xh.setAttribute("visibility", "hidden"); }
+svg.addEventListener("pointermove", hover);
+svg.addEventListener("pointerleave", leave);
+svg.addEventListener("click", e => {
+  const b = svg.getBoundingClientRect(), a = ((e.clientX - b.left) - M.l) / (chartGeom.w - M.l - M.r) * 360;
+  if (a >= 0 && a <= 360) { state.az = Math.round(a); schedule({}); }
+});
+window.addEventListener("resize", () => schedule({}));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => schedule({}));
+new MutationObserver(() => schedule({})).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+schedule({ vis: true });
+</script>
+</body>
+</html>
