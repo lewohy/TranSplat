@@ -29,68 +29,79 @@ TranSplat(arXiv 2503.22676, 본 저장소)의 한계 중 하나인 **고주파(�
 
 ## 3. 지금까지 한 일
 
-### 3.1 `scripts/shadow_frequency_study.py` (미커밋)
-합성 환경맵(균일 ambient + 각지름 2/5/10/30° 원판 광원, 3방향)으로 per-Gaussian diffuse irradiance를 여러 방식으로 계산해 **oracle** 대비 오차를 낸다. 각 행은 oracle에서 한 요소만 바꾼 것.
+### 3.1 `scripts/shadow_frequency_study.py`
+합성 환경맵(균일 ambient + 각지름 2/5/10/30° 원판 광원, 3방향)으로 per-Gaussian diffuse irradiance를 여러 방식으로 계산해 **oracle** 대비 오차를 낸다. 각 행은 oracle에서 한 요소만 바꾼 것. 실행 한 번으로 A(oracle 신뢰성)/B(쉬운 수정 후 SH 절단 비중)/C(Haar vs SH)와 판정 표를 `results.md` 맨 위에 출력한다.
 
 | 행 | 의미 |
 |---|---|
-| `oracle` | 기준값. SH 압축 없음, Fibonacci 4096방향 + 광원 내부 64방향 직접 적분, hard(0/1) visibility, 정확한 clamped cosine |
+| `oracle` | 기준값. cube map(기본 64²×6) 방향 + 광원 내부 샘플 직접 적분, hard visibility(median depth, 그림자맵 2048, normal offset bias), 정확한 clamped cosine |
+| `oracle_res2x` / `oracle_dir2x` / `oracle_bias_*` | 수렴·bias 민감도 확인 (그림자맵 4096 / 방향 2배 / 다른 bias) |
 | `filt` | visibility만 ESM+PCF로 |
 | `cos2` | cosine만 l≤2로 절단 |
-| `sh{l}_L` / `_V` / `_LV` | 조명만 / visibility만 / 둘 다 SH 차수 l로 절단 (l=2,3,5,7,9). `sh3_LV`가 현재 방식 |
+| `sh{l}_L` / `_V` / `_LV` | 조명만 / visibility만 / 둘 다 SH 차수 l로 절단. `sh3_LV`가 현재 방식 |
 | `pipe1200` | 실제 Phase 1 + Phase 2 diffuse 코드 그대로 |
-| `pipe1200_exactL` | 위와 같되 조명 SH만 정확히 투영 (차이 = 환경맵 샘플링 오차) |
+| `pipe1200_exactL` | 위와 같되 조명 SH만 정확히 투영 |
+| `pipefix1200` / `_hard` | 쉬운 수정(robust radius + 정확한 조명 투영) 파이프라인, ESM / hard visibility |
+| `C_{V,LV,T}_{sh K,haar K}` | V / L·V / transfer를 SH 또는 Haar(cube face별 2D, nonlinear top-k)로 같은 계수 수 K로 압축 |
 
-지표:
-- `rel_mae_{all,lit,penumbra,umbra}` = 영역별 `mean|E−E_oracle| / mean(E_oracle)`
-- `shadow_depth = 1 − mean(E_umbra)/mean(E_lit)`, `shadow_depth_ratio` = 방법/oracle (1=정확, <1=그림자가 옅어짐)
-- 영역: 광원을 향한 점 중 광원 내부 64샘플의 가시 비율 ≥98% lit, ≤2% umbra, 그 사이 penumbra
+지표: `nmae_{region} = mean|E−E_oracle|(region) / mean E_oracle(lit)`. 영역은 광원 내부 샘플 가시 비율로 lit(≥98%)/penumbra/umbra(≤2%).
 
-출력(`<ply 폴더>/shadow_frequency_study/`): `results.md`, `results.json`, `per_point.npz`, `envs/*.hdr`, `visibility.npz`(`--save-visibility`; 평가점 × Fibonacci 방향 hard visibility, wavelet 실험 입력).
+oracle 오염 원인과 수정 (2026-11-02 확인):
+- floater로 scene radius 9배 과대 → opaque 점 99.5% 분위수 × 1.1.
+- surfel normal 부호가 임의(약 48%가 뒤집힘) → 학습 카메라 투표로 방향 결정. up 축도 카메라에서 자동 추정.
+- 내부 surfel 층이 가림으로 판정됨 → 2개 이상 학습 뷰에서 보이고 렌더 표면 0.5px 이내인 점만 평가.
+- texel 단위 bias는 겹친 surfel에서 acne → normal 방향으로 2×max_scale 오프셋.
+- 합성 장면(평면 위 구, 실제 rasterizer, ray-cast 정답)에서 normal/slope bias의 오판정률이 2~3%로 확인됨.
 
-검증: `--self-test`(CPU) 통과, 해석적 장면(평면 위 구)에서 경향 확인, 가짜 렌더러로 `run()` 전체 경로 확인.
+### 3.2 lego 첫 실행 (2026-10-28) — oracle 오염으로 폐기
+`shadow_frequency_study/` 결과는 위 오염(AO 중앙값 0.079) 때문에 판단 근거로 쓰지 않는다. "ESM이 그림자를 크게 지운다", "작은 광원에서 1200점 최근접 환경맵 샘플링이 크게 틀린다"는 결론은 3.3에서 다시 확인됨.
 
-### 3.2 lego 첫 실행 결과 (2026-10-28)
-`sample/outputs/lego/point_cloud/iteration_30000/shadow_frequency_study/results.md` (기본 옵션, N=975,252, 평가점 20,000).
+### 3.3 lego 본 실행 (2026-11-02)
+`sample/outputs/lego/point_cloud/iteration_30000/shadow_frequency_study_v2/results.md` (기본 옵션, 평가점 40,000, 약 45분 / RTX 5080).
 
-**신뢰할 수 있는 결론 (같은 측정 장치 내 상대 비교)**
-- ESM 필터링이 그림자를 가장 많이 지운다: `filt`/`pipe1200`의 `shadow_depth_ratio` 0.42~0.70, `sh3_LV`는 0.97~0.99. `pipe1200_exactL ≈ filt` → 현재 파이프라인 오차의 대부분은 ESM.
-- 작은 광원에서 환경맵 1200점 최근접 샘플링이 크게, 불규칙하게 틀린다: 예) `dir0_2deg` `pipe1200` 19.07 vs `exactL` 2.96.
+A. oracle 신뢰성
+- radius 1.918 (phase 1 공식 13.939), 그림자맵 texel 0.0023 < surfel 중앙값 0.009.
+- AO 중앙값 0.395, AO<0.05 비율 3.7% (이전 0.079 / 34%) → visibility 정상.
+- oracle 자체 불확실성(penumbra nMAE): res2x 0.093/0.054/0.026/0.021, normal_wide bias 0.20/0.12/0.055/0.043 (2/5/10/30°). **2°는 오차 측정치(~0.2)와 같은 크기라 신뢰 불가**, 5°는 경계, 10° 이상은 신뢰 가능.
 
-**신뢰할 수 없는 부분: oracle 자체가 오염됨**
-- floater 0.1%가 중심에서 최대 7.7까지 퍼져 있음(점의 99%는 1.6 이내) → `scene_radius = 13.9`로 약 9배 과대.
-- 그 결과 그림자맵에서 물체 폭이 약 115px(1024 중), 픽셀 약 0.033 > surfel 중앙값 0.009 → 해상도 부족.
-- ESM α ≈ 0.57로 너무 작아 그림자가 거의 투명.
-- hard 판정은 반대로 과다 가림(acne 추정 + 내부 surfel 포함): AO 중앙값 0.079(정상 외부면이면 약 0.5), 평가점의 34%가 AO<0.05, umbra가 약 40%. `rel_mae_umbra`가 20~290으로 튀는 것도 분모(E_oracle umbra)가 거의 0이기 때문.
-- 추세만 참고: penumbra SH 절단 오차는 l=3에서 0.40~0.51, l=9에서도 2° 광원은 0.38~0.44로 느리게 감소. L/V 절단 영향은 비슷.
+B. 쉬운 수정 후 오차 구성 (penumbra nMAE, 2/5/10/30°)
+- `pipe1200` 0.44/0.74/0.41/0.26 → `pipefix1200` 0.25/0.24/0.22/0.14 → `pipefix1200_hard` 0.21/0.21/0.17/0.11.
+- `sh3_LV` 0.23/0.25/0.23/0.11 ≈ pipefix → 쉬운 수정 후 남는 오차는 거의 전부 SH 절단 (share 0.95~1.04).
+- SH 차수 올려도 느리게 감소: `sh9_LV` 0.18/0.19/0.14/0.03. 30°만 l=7에서 충분.
+
+C. 같은 계수 수의 Haar vs SH (ratio = SH/Haar, >1이면 Haar가 나음)
+- V 압축: 5° 1.53/1.84/2.39, 10° 1.74/2.59/2.85 (K=16/64/256). 2°는 1.25 내외 — cube 64 floor(0.102)가 오차와 같은 크기라 판별 불가.
+- LV 압축(triple product): K=16에서 Haar가 더 나쁨(ratio 0.38~0.87). 조명을 16개 Haar 계수로 못 담음. K≥64에서는 V와 비슷.
+- 30°는 K≥64에서 차이 없음.
+- Haar는 계수마다 index가 필요해 haar{K/2}가 sh{K}와 같은 메모리. 근사 L2 기준 haar32 0.414 vs sh64 0.393, haar128 0.271 vs sh256 0.312 → 같은 메모리에서 이점은 K가 클 때만 소폭.
+
+신뢰할 수 있는 결론
+- 현재 파이프라인 오차의 절반 이상은 쉬운 수정(robust radius, 정확한 조명 투영, ESM 대신 hard 판정)으로 없어진다.
+- 그 뒤 남는 오차는 SH 절단이 주 원인이고, l=9까지 올려도 작은 광원에서 큼 (B1, B2 성립).
+- Haar의 이점은 5~10° 광원, 계수 64 이상에서 1.8~2.9배. 현재 예산(16계수)과 L·V 동시 압축에서는 이점이 없거나 역전.
+
+추세만 참고
+- 2° 광원 비교 전체 (oracle 해상도·cube 64 floor 한계).
+- 같은 메모리 기준 비교 (per-light 최종 E 오차가 아닌 근사 L2로만 확인).
 
 ## 4. 다음 할 일
 
-판단에 필요한 질문 3개를 **한 번의 GPU 실행으로** 답하도록 study 스크립트를 확장한다. (사용자 승인 대기 중)
-
-- **A. 기준(oracle) 신뢰성**
-  1. floater에 강건한 scene center/radius (예: opacity>0.5 점의 99.5% 분위수)
-  2. bias 개선 (slope-scaled bias 또는 normal offset, 옵션화)
-  3. 학습 카메라(`cameras.json`)에서 실제로 보이는 Gaussian만 평가 (내부 surfel 제외)
-  4. AO 분포를 결과에 출력 (visibility 정상 여부 확인)
-  5. umbra 오차를 lit 평균으로 정규화한 지표 추가
-  6. 수렴 확인: 그림자맵 해상도·방향 수 2배에서 oracle이 거의 안 변하는지
-- **B. 쉬운 수정 후에도 SH 절단이 주 오차인가**: robust radius + 정확한 조명 투영만 적용한 "기본 수정 파이프라인" 행 추가.
-- **C. 같은 계수 수에서 wavelet이 SH보다 나은가**: 수정된 visibility를 cube map으로 변환, Haar wavelet nonlinear 근사 vs SH를 계수 16/64/256에서 비교 (근사 오차와 최종 E 오차).
-- 결과 끝에 아래 판단 기준에 맞춘 요약 표.
-
-기존 `visibility.npz`는 저해상도로 경계가 뭉개져 wavelet 이점을 과소평가하므로 C의 판단 근거로 쓰지 않는다.
+- 2° 판별: `--cube-res 128` (필요하면 `--shadow-res 4096`)로 C만 재실행해 floor를 낮춘 상태에서 Haar 이점이 커지는지 확인.
+- 같은 메모리(haar{K/2} vs sh{K}) 기준 최종 E 오차를 판정 표에 추가.
+- 쉬운 수정을 `radiance_transfer_TranSplat.py`에 반영할지 결정 후 구현 (robust radius, 조명 SH 정확 투영, ESM 파라미터/hard 판정).
+- wavelet으로 간다면 계수 예산(64~256)과 메모리/속도 비용 추정이 선행되어야 함.
 
 ## 5. 판단 기준 (초안, 수치 임계값은 사용자 결정 필요)
 
 - **진행(wavelet)**: B 이후에도 penumbra 오차의 대부분이 SH 절단 **그리고** SH l=9에서도 작은 광원(2~5°) 오차가 큼 **그리고** C에서 같은 계수 수의 wavelet이 확실히 낮음.
 - **방향 전환**: 쉬운 수정만으로 충분, 또는 SH l=5~7로 충분, 또는 wavelet이 같은 예산에서 SH보다 낫지 않음.
+- 스크립트 기본 임계값(잠정): share 0.5, large 0.1, ratio 2.0, small lights = 2, 5°. 3.3 실행에서 B1·B2는 성립, C는 모든 K에서 불성립(2°가 끌어내림).
 
 ## 6. 미결정 사항 (사용자 결정 필요)
 
-- A+B+C 일괄 구현 진행 여부
-- 판단 기준의 수치 임계값 ("대부분", "크게", "확실히"의 기준, 예: 오차 50% 이상, 2배 차이)
-- lego COLMAP 장면의 up 축 (현재 `--light-dirs` 기본값은 축을 모르는 상태에서 고른 3방향)
+- 판단 기준의 수치 임계값 확정 (현재 잠정값은 5 참고). 특히 "small lights"에 신뢰 불가한 2°를 포함할지.
+- 허용 계수 예산 (16 유지 / 64 / 256): C 결론이 예산에 따라 갈림.
+- 쉬운 수정만 먼저 본 코드에 반영할지.
 
 ## 7. 환경 메모
 
