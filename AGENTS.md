@@ -42,11 +42,13 @@ TranSplat(arXiv 2503.22676, 본 저장소)의 한계 중 하나인 **고주파(�
 | `pipe1200` | 실제 Phase 1 + Phase 2 diffuse 코드 그대로 |
 | `pipe1200_exactL` | 위와 같되 조명 SH만 정확히 투영 |
 | `pipefix1200` / `_hard` | 쉬운 수정(robust radius + 정확한 조명 투영) 파이프라인, ESM / hard visibility |
-| `C_{V,LV,T}_{sh K,haar K}` | V / L·V / transfer를 SH 또는 Haar(cube face별 2D, nonlinear top-k)로 같은 계수 수 K로 압축 |
+| `C_{V,LV,T}_{sh K,haar K}` | V / L·V / transfer를 SH 또는 Haar(cube face별 2D, nonlinear top-k)로 계수 K개로 압축. 요약은 압축 안 한 cube 대비 오차(`*_vscube`)로 비교 |
+| `C_H_*` | hybrid: 광원은 정확한 그림자, ambient만 압축 V |
 
 지표: `nmae_{region} = mean|E−E_oracle|(region) / mean E_oracle(lit)`. 영역은 광원 내부 샘플 가시 비율로 lit(≥98%)/penumbra/umbra(≤2%).
 
 oracle 오염 원인과 수정 (2026-11-02 확인):
+- robust radius 밖 floater가 그림자맵 카메라와 물체 사이를 막음 → 이 study의 그림자맵에서 제외 (`--keep-floaters`로 끔). `pipe*` 행은 phase 1 그대로.
 - floater로 scene radius 9배 과대 → opaque 점 99.5% 분위수 × 1.1.
 - surfel normal 부호가 임의(약 48%가 뒤집힘) → 학습 카메라 투표로 방향 결정. up 축도 카메라에서 자동 추정.
 - 내부 surfel 층이 가림으로 판정됨 → 2개 이상 학습 뷰에서 보이고 렌더 표면 0.5px 이내인 점만 평가.
@@ -54,54 +56,67 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
 - 합성 장면(평면 위 구, 실제 rasterizer, ray-cast 정답)에서 normal/slope bias의 오판정률이 2~3%로 확인됨.
 
 ### 3.2 lego 첫 실행 (2026-10-28) — oracle 오염으로 폐기
-`shadow_frequency_study/` 결과는 위 오염(AO 중앙값 0.079) 때문에 판단 근거로 쓰지 않는다. "ESM이 그림자를 크게 지운다", "작은 광원에서 1200점 최근접 환경맵 샘플링이 크게 틀린다"는 결론은 3.3에서 다시 확인됨.
+`shadow_frequency_study/` 결과는 위 오염(AO 중앙값 0.079) 때문에 판단 근거로 쓰지 않는다. "ESM이 그림자를 크게 지운다", "작은 광원에서 1200점 최근접 환경맵 샘플링이 크게 틀린다"는 결론은 3.4에서 다시 확인됨.
 
-### 3.3 lego 본 실행 (2026-11-02)
-`sample/outputs/lego/point_cloud/iteration_30000/shadow_frequency_study_v2/results.md` (기본 옵션, 평가점 40,000, 약 45분 / RTX 5080).
+### 3.3 lego v2 실행 (2026-11-02) — floater 가림으로 폐기
+`shadow_frequency_study_v2/`는 robust radius 밖 floater 280개(중심에서 4.3~7.5)가 그림자맵 카메라와 물체 사이에 있어 dir2(고도 10°) 광원이 전부 umbra였고, 그 방향 cone이 모든 점에서 검게 나왔다. 이 큰 검은 블록 때문에 Haar 이점이 과대(최대 2.9배)로 나왔다. 수치는 쓰지 않는다.
 
-A. oracle 신뢰성
-- radius 1.918 (phase 1 공식 13.939), 그림자맵 texel 0.0023 < surfel 중앙값 0.009.
-- AO 중앙값 0.395, AO<0.05 비율 3.7% (이전 0.079 / 34%) → visibility 정상.
-- oracle 자체 불확실성(penumbra nMAE): res2x 0.093/0.054/0.026/0.021, normal_wide bias 0.20/0.12/0.055/0.043 (2/5/10/30°). **2°는 오차 측정치(~0.2)와 같은 크기라 신뢰 불가**, 5°는 경계, 10° 이상은 신뢰 가능.
+### 3.4 lego v3 + cube 128 + hybrid (2026-11-02)
+- `sample/outputs/lego/point_cloud/iteration_30000/shadow_frequency_study_v3/results.md`: floater 제외(1,907개), 평가점 40,000, cube 64.
+- `.../shadow_frequency_study_c128/results.md`: `--only-compact --cube-res 128`, 평가점 20,000.
+- `.../shadow_frequency_study_v3/hybrid_check.md`: `scripts/shadow_hybrid_check.py`. 광원만 relight 시점 그림자맵(해상도 × 광원 내부 샘플 수)으로 처리했을 때의 오차.
 
-B. 쉬운 수정 후 오차 구성 (penumbra nMAE, 2/5/10/30°)
-- `pipe1200` 0.44/0.74/0.41/0.26 → `pipefix1200` 0.25/0.24/0.22/0.14 → `pipefix1200_hard` 0.21/0.21/0.17/0.11.
-- `sh3_LV` 0.23/0.25/0.23/0.11 ≈ pipefix → 쉬운 수정 후 남는 오차는 거의 전부 SH 절단 (share 0.95~1.04).
-- SH 차수 올려도 느리게 감소: `sh9_LV` 0.18/0.19/0.14/0.03. 30°만 l=7에서 충분.
+수치 (penumbra nMAE, 2/5/10/30°):
+- A. AO 중앙값 0.655, AO<0.05 0.6%. oracle 불확실성 res2x 0.092/0.062/0.044/0.023, normal_wide 0.19/0.15/0.11/0.05.
+- B. `pipe1200` 0.46/0.54/0.35/0.26 → `pipefix1200_hard` 0.22/0.21/0.20/0.15. `sh3_LV` 0.18/0.18/0.17/0.11, `sh9_LV` 0.13/0.13/0.10/0.03.
+- C (cube 기준 압축 오차만, SH/Haar 비율):
 
-C. 같은 계수 수의 Haar vs SH (ratio = SH/Haar, >1이면 Haar가 나음)
-- V 압축: 5° 1.53/1.84/2.39, 10° 1.74/2.59/2.85 (K=16/64/256). 2°는 1.25 내외 — cube 64 floor(0.102)가 오차와 같은 크기라 판별 불가.
-- LV 압축(triple product): K=16에서 Haar가 더 나쁨(ratio 0.38~0.87). 조명을 16개 Haar 계수로 못 담음. K≥64에서는 V와 비슷.
-- 30°는 K≥64에서 차이 없음.
-- Haar는 계수마다 index가 필요해 haar{K/2}가 sh{K}와 같은 메모리. 근사 L2 기준 haar32 0.414 vs sh64 0.393, haar128 0.271 vs sh256 0.312 → 같은 메모리에서 이점은 K가 클 때만 소폭.
+  | 방식 | 2° | 5° | 10° | 30° |
+  |---|---|---|---|---|
+  | V, 같은 K=256 | 1.12 | 1.59 | 1.72 | 0.81 |
+  | V, 같은 메모리 (haar128 vs sh256) | 0.94 | 1.05 | 1.01 | 0.60 |
+  | T, 같은 K=256 | 1.23 | 1.79 | 1.83 | 0.86 |
+  | T, 같은 메모리 | 0.99 | 1.20 | 1.16 | 0.63 |
+
+  K=16, 64에서는 같은 K로도 0.9~1.4배다. LV는 K=16에서 Haar가 약 3배 나쁘다 (조명을 16개 Haar 계수로 못 담음). cube 64와 128의 비율 차이는 ±0.1 이내. cube floor는 2°에서 0.094 → 0.054로 줄었다.
+- hybrid (광원 그림자 오차만, oracle 2048×64 대비):
+
+  | 그림자맵 | 2° | 5° | 10° | 30° |
+  |---|---|---|---|---|
+  | 1024px×16 | 0.130 | 0.096 | 0.071 | 0.045 |
+  | 2048px×16 | 0.044 | 0.038 | 0.034 | 0.031 |
+
+  샘플 1개(hard 그림자)는 0.20~0.27이다. ambient 쪽은 SH16으로 0.001 (합성 ambient가 균일해서 최선의 경우).
 
 신뢰할 수 있는 결론
-- 현재 파이프라인 오차의 절반 이상은 쉬운 수정(robust radius, 정확한 조명 투영, ESM 대신 hard 판정)으로 없어진다.
-- 그 뒤 남는 오차는 SH 절단이 주 원인이고, l=9까지 올려도 작은 광원에서 큼 (B1, B2 성립).
-- Haar의 이점은 5~10° 광원, 계수 64 이상에서 1.8~2.9배. 현재 예산(16계수)과 L·V 동시 압축에서는 이점이 없거나 역전.
+- **per-Gaussian Haar wavelet은 같은 메모리에서 SH보다 낫지 않다** (2~10°에서 0.92~1.20배, 30°에서는 0.6배). 같은 계수 수 기준으로도 이점은 K=256, 5~10°에서 1.6~1.8배뿐이고, 판정 임계 2배를 넘는 경우가 없다. cube 해상도를 올려도 바뀌지 않는다.
+- SH 차수 증가도 효율이 낮다: l=3 → 9(계수 6배)로 작은 광원 오차가 25%만 준다.
+- 쉬운 수정만으로 현재 파이프라인 오차가 2~2.5배 준다. floater 제거, robust radius, 조명 정확 투영, ESM 대신 hard 판정이다. 실제 phase 1도 같은 floater 문제를 갖고 있다 (radius 13.9, floater 포함 렌더).
+- 날카로운 광원을 relight 시점 그림자맵으로 따로 처리하면(2048px, 샘플 16) 광원 그림자 오차가 0.03~0.04다. 1024px×16도 5° 이상에서는 모든 압축 방식(SH256 포함)보다 낮다. 샘플 1개짜리 hard 그림자는 오히려 SH보다 나쁘므로 soft 샘플링이 필요하다.
 
 추세만 참고
-- 2° 광원 비교 전체 (oracle 해상도·cube 64 floor 한계).
-- 같은 메모리 기준 비교 (per-light 최종 E 오차가 아닌 근사 L2로만 확인).
+- 2° 절대 오차 (oracle 해상도 불확실성 0.09).
+- 2048px hybrid 오차는 같은 해상도 oracle 대비라 해상도 오차가 빠져 있다 (실제는 res2x 수준 0.02~0.09가 더해질 수 있음).
+- 합성 환경맵(균일 ambient + 원판) 기준이다. 실제 HDR에서는 광원 분리 후 남는 부분이 균일하지 않아 hybrid의 ambient 오차가 커질 수 있다. 저장소에 실제 HDR은 없다.
 
 ## 4. 다음 할 일
 
-- 2° 판별: `--cube-res 128` (필요하면 `--shadow-res 4096`)로 C만 재실행해 floor를 낮춘 상태에서 Haar 이점이 커지는지 확인.
-- 같은 메모리(haar{K/2} vs sh{K}) 기준 최종 E 오차를 판정 표에 추가.
-- 쉬운 수정을 `radiance_transfer_TranSplat.py`에 반영할지 결정 후 구현 (robust radius, 조명 SH 정확 투영, ESM 파라미터/hard 판정).
-- wavelet으로 간다면 계수 예산(64~256)과 메모리/속도 비용 추정이 선행되어야 함.
+방향 제안 (사용자 확인 필요): wavelet 대신 **쉬운 수정 + 광원 분리 hybrid**.
+1. `radiance_transfer_TranSplat.py`에 쉬운 수정 반영: floater 제외/robust radius, 조명 SH 정확 투영(최근접 1200점 샘플링 대체), visibility 판정(hard + normal offset 또는 ESM 파라미터 재조정).
+2. hybrid 구현: 환경맵에서 밝은 광원 추출 → 광원은 relight 시점에 그림자맵(soft, 샘플 16 정도)으로, 나머지는 기존 SH V로.
+3. 실제 HDR 몇 장(실내/야외 해, 창문)으로 study를 다시 돌려 hybrid의 나머지 SH 오차와 광원 추출 기준을 확인.
 
-## 5. 판단 기준 (초안, 수치 임계값은 사용자 결정 필요)
+## 5. 판단 기준
 
 - **진행(wavelet)**: B 이후에도 penumbra 오차의 대부분이 SH 절단 **그리고** SH l=9에서도 작은 광원(2~5°) 오차가 큼 **그리고** C에서 같은 계수 수의 wavelet이 확실히 낮음.
 - **방향 전환**: 쉬운 수정만으로 충분, 또는 SH l=5~7로 충분, 또는 wavelet이 같은 예산에서 SH보다 낫지 않음.
-- 스크립트 기본 임계값(잠정): share 0.5, large 0.1, ratio 2.0, small lights = 2, 5°. 3.3 실행에서 B1·B2는 성립, C는 모든 K에서 불성립(2°가 끌어내림).
+- 잠정 임계값: share 0.5, large 0.1, ratio 2.0, small lights = 2, 5°. 3.4 기준으로 B1·B2는 성립하고 C는 모든 K·메모리 조건에서 불성립 → 기준상 **방향 전환**. 사용자 확정 전.
 
 ## 6. 미결정 사항 (사용자 결정 필요)
 
-- 판단 기준의 수치 임계값 확정 (현재 잠정값은 5 참고). 특히 "small lights"에 신뢰 불가한 2°를 포함할지.
-- 허용 계수 예산 (16 유지 / 64 / 256): C 결론이 예산에 따라 갈림.
-- 쉬운 수정만 먼저 본 코드에 반영할지.
+- 4의 방향 제안(wavelet 중단, 쉬운 수정 + hybrid) 승인 여부.
+- 판단 임계값 확정 (결론은 임계값을 1.5배로 낮춰도 같은 메모리 기준에서는 바뀌지 않는다).
+- 실제 HDR 테스트용 환경맵 선택.
 
 ## 7. 환경 메모
 
