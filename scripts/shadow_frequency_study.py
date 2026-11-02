@@ -174,6 +174,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--radius-margin", type=float, default=1.1)
     parser.add_argument(
+        "--keep-floaters",
+        action="store_true",
+        help="Keep Gaussians outside the robust radius in this study's shadow maps "
+        "(they sit between the shadow camera and the object and black out whole directions)",
+    )
+    parser.add_argument(
         "--min-views",
         type=int,
         default=2,
@@ -210,6 +216,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=[8, 16, 32, 64, 128, 256],
         help="Kept Haar coefficients for the C_* rows",
+    )
+    parser.add_argument(
+        "--only-compact",
+        action="store_true",
+        help="Only the oracle and the C_* rows (for large --cube-res; skips ESM, bias variants, "
+        "convergence, SH-truncation and pipeline rows)",
     )
     parser.add_argument(
         "--env-height", type=int, default=512, help="Equirect HDR height (width = 2x)"
@@ -788,8 +800,11 @@ class Pipeline:
 
 
 @torch.no_grad()
-def compact_study(lights, normals, VF, D, w, res, Y_all, sh_orders, haar_counts, chunk):
+def compact_study(lights, normals, VF, VC, D, w, res, Y_all, sh_orders, haar_counts, chunk):
     """C_* rows: SH vs Haar representations of V, L*V and V*cos on the oracle cube map.
+
+    C_H_* (hybrid): the disc is shadowed exactly (as a per-light shadow map at relight time would),
+    only the ambient part goes through the compressed V.
 
     Returns ({light: {row: E}}, {rep: mean relative L2 error}).
     """
@@ -844,6 +859,10 @@ def compact_study(lights, normals, VF, D, w, res, Y_all, sh_orders, haar_counts,
                         E[lt.name].setdefault(f"C_V_{label}", []).append(e)
                         e_lv = (c["L_hat"][label] * Xh * k_T * w).sum(1)
                         E[lt.name].setdefault(f"C_LV_{label}", []).append(e_lv)
+                        e_h = lt.ambient * (Xh * k_T * w).sum(1) + lt.radiance * lt.cap_w * (
+                            VC[lt.name][a : a + chunk].float() * k_C
+                        ).sum(1)
+                        E[lt.name].setdefault(f"C_H_{label}", []).append(e_h)
                     else:
                         e = lt.ambient * (Xh * w).sum(1) + lt.radiance * lt.cap_w * Xc.sum(1)
                         E[lt.name].setdefault(f"C_T_{label}", []).append(e)
@@ -970,7 +989,8 @@ def summarize(results, approx_err, diag, lights, args):
     lines += table(["visibility / normals", "q10", "q25", "q50", "q75", "q90", "frac<0.05"], rows)
     conv = [m for m in ("oracle_res2x", "oracle_dir2x") if m in results[lights[0].name]]
     conv += sorted(
-        (f"oracle_bias_{m}" for m in HARD_MODES if m != args.bias), key=lambda m: "wide" not in m
+        (f"oracle_bias_{m}" for m in HARD_MODES if f"oracle_bias_{m}" in results[lights[0].name]),
+        key=lambda m: "wide" not in m,
     )
     rows = []
     for s in sizes:
@@ -1013,36 +1033,59 @@ def summarize(results, approx_err, diag, lights, args):
         verdict["B1: SH truncation >= thr_share of fixed-pipeline penumbra error (small lights)"] = all(
             shares[s] >= args.thr_share for s in small
         )
-    lines += ["### SH order needed", ""]
-    orders = [l for l in args.sh_orders]
-    rows = [[f"{s:g}"] + [fmt(avg(f"sh{l}_LV", pen, s)) for l in orders] + [fmt(avg("cos2", pen, s))] for s in sizes]
-    lines += table(["disc deg"] + [f"sh{l}_LV" for l in orders] + ["cos2 (floor)"], rows)
-    lmax = max(orders)
-    verdict[f"B2: sh{lmax}_LV penumbra nMAE >= thr_large for small lights"] = all(
-        avg(f"sh{lmax}_LV", pen, s) >= args.thr_large for s in small
-    )
+    orders = [l for l in args.sh_orders if f"sh{l}_LV" in results[lights[0].name]]
+    if orders:
+        lines += ["### SH order needed", ""]
+        rows = [[f"{s:g}"] + [fmt(avg(f"sh{l}_LV", pen, s)) for l in orders] + [fmt(avg("cos2", pen, s))] for s in sizes]
+        lines += table(["disc deg"] + [f"sh{l}_LV" for l in orders] + ["cos2 (floor)"], rows)
+        lmax = max(orders)
+        verdict[f"B2: sh{lmax}_LV penumbra nMAE >= thr_large for small lights"] = all(
+            avg(f"sh{lmax}_LV", pen, s) >= args.thr_large for s in small
+        )
 
-    # C. wavelet vs SH at equal coefficient count
-    lines += ["### C. Haar wavelet vs SH at equal coefficient count (exact cosine)", ""]
+    # C. wavelet vs SH, compression error alone (against the uncompressed cube map)
+    pen_c = "nmae_penumbra_vscube"
     sh_counts = [(l + 1) ** 2 for l in args.compact_sh_orders]
-    for target, desc in (
+    lines += [
+        "### C. Haar wavelet vs SH (compression error alone)",
+        "",
+        f"Errors are `{pen_c}`: against the uncompressed cube map of the same target, so the cube-map floor "
+        "(`cube vs oracle`, discretisation of the direction sphere) is left out. "
+        "Haar stores an index per coefficient, so haar{K/2} has the memory of sh{K}. ratio = SH / Haar (> 1: Haar better).",
+        "",
+    ]
+    reps = sorted(
+        [(k, f"sh{k}") for k in sh_counts] + [(k, f"haar{k}") for k in args.haar_counts]
+    )
+    targets = (
         ("V", "visibility compressed, exact L (TranSplat stores V)"),
         ("LV", "light and visibility compressed (triple-product setting)"),
-        ("T", "transfer V*max(n.w,0) compressed, exact L (classic PRT)"),
-    ):
+        ("T", "transfer V*max(n.w,0) compressed, exact L (classic PRT, diffuse)"),
+    )
+    for target, desc in targets:
         rows = []
         for s in sizes:
             row = [f"{s:g}", fmt(avg(f"C_{target}_cube", pen, s))]
+            row += [fmt(avg(f"C_{target}_{r}", pen_c, s)) for _, r in reps]
             for k in sh_counts:
-                e_sh, e_h = avg(f"C_{target}_sh{k}", pen, s), avg(f"C_{target}_haar{k}", pen, s)
-                ratio = e_sh / e_h if e_h > 0 else float("nan")
-                row += [fmt(e_sh), fmt(e_h) if k in args.haar_counts else "-", fmt(ratio, 2)]
+                e_sh = avg(f"C_{target}_sh{k}", pen_c, s)
+                for kh in (k, k // 2):
+                    e_h = avg(f"C_{target}_haar{kh}", pen_c, s)
+                    row.append(fmt(e_sh / e_h, 2) if e_h > 0 else "-")
             rows.append(row)
-        header = ["disc deg", "cube (floor)"]
+        header = ["disc deg", "cube vs oracle"] + [r for _, r in reps]
         for k in sh_counts:
-            header += [f"sh{k}", f"haar{k}", f"ratio{k}"]
+            header += [f"ratio{k}", f"ratio{k} mem"]
         lines += [f"**{target}**: {desc}", ""]
         lines += table(header, rows)
+    rows = [[f"{s:g}"] + [fmt(avg(f"C_H_{r}", pen, s)) for _, r in reps] for s in sizes]
+    lines += [
+        "**H** (hybrid): the disc is shadowed exactly at relight time (a per-light shadow map), only the ambient "
+        "part uses the compressed V. Errors against the oracle; the synthetic ambient is uniform, so this is the "
+        "best case of separating sharp lights from the rest:",
+        "",
+    ]
+    lines += table(["disc deg"] + [r for _, r in reps], rows)
     rows = []
     for target in ("V", "T"):
         rows.append(
@@ -1052,18 +1095,16 @@ def summarize(results, approx_err, diag, lights, args):
         )
     lines += ["Mean relative L2 approximation error per point (sphere-weighted):", ""]
     lines += table(["target"] + [f"sh{k}" for k in sh_counts] + [f"haar{k}" for k in args.haar_counts], rows)
-    for k in sh_counts:
-        if k in args.haar_counts:
-            for target in ("V", "LV"):
-                ok = all(
-                    avg(f"C_{target}_sh{k}", pen, s)
-                    >= args.thr_ratio * avg(f"C_{target}_haar{k}", pen, s)
+    for target in ("V", "LV", "T"):
+        for k in sh_counts:
+            for kh, tag in ((k, "same K"), (k // 2, "same memory")):
+                if kh not in args.haar_counts:
+                    continue
+                verdict[f"C: {target} haar{kh} >= thr_ratio x better than sh{k} ({tag}, small lights)"] = all(
+                    avg(f"C_{target}_sh{k}", pen_c, s) >= args.thr_ratio * avg(f"C_{target}_haar{kh}", pen_c, s)
                     for s in small
                 )
-                verdict[f"C: {target} Haar{k} >= thr_ratio x better than SH{k} (small lights)"] = ok
     lines += [
-        "Haar stores an index per coefficient, so haar{K/2} is the equal-memory comparison for sh{K}.",
-        "",
         "### Verdict (provisional thresholds: "
         f"share {args.thr_share}, large {args.thr_large}, ratio {args.thr_ratio}; small lights = {', '.join(f'{s:g}' for s in small)} deg)",
         "",
@@ -1133,12 +1174,19 @@ def run(args):
         radius_phase1=float(torch.norm(xyz - xyz.mean(0), dim=1).max()) * 1.8,
         median_max_scale=float(torch.exp(gaussians["scaling"].detach()).max(1).values[opaque].median()),
     )
+    # Shadow maps of this study render without floaters; pipe* rows keep phase 1 as is.
+    shadow_g = gaussians
+    if not args.keep_floaters:
+        shadow_g = dict(gaussians)
+        shadow_g["opacity"] = gaussians["opacity"].detach().clone()
+        shadow_g["opacity"][dist > radius] = -30.0
+    diag["scene"]["n_culled"] = 0 if args.keep_floaters else int((dist > radius).sum())
 
     # A3: evaluate only Gaussians the training views see, with normals oriented towards them.
     cameras_path = args.cameras or args.ply.parents[2] / "cameras.json"
     cams = load_cameras(cameras_path, device)
     candidates = torch.nonzero(opaque & (dist < r_q))[:, 0]
-    n_views, vote, resid = training_views(gaussians, cams, candidates, normals_world, args.view_tol)
+    n_views, vote, resid = training_views(shadow_g, cams, candidates, normals_world, args.view_tol)
     seen = (n_views >= args.min_views) & (resid < args.surface_tol)
     flip = vote < 0
     normals_world[candidates[flip]] *= -1
@@ -1188,13 +1236,18 @@ def run(args):
 
     t0 = time.time()
     D, w = cube_directions(args.cube_res, device)
-    mapper = ShadowMapper(gaussians, eval_idx, normals, center, radius, args.shadow_res, args, args.esm_res)
+    mapper = ShadowMapper(shadow_g, eval_idx, normals, center, radius, args.shadow_res, args, args.esm_res)
     diag["scene"]["texel"] = mapper.texel
-    all_modes = list(HARD_MODES) + ["esm"]
-    ao_keys = {f"{m}": (m, normals) for m in HARD_MODES}
-    ao_keys["scale / unoriented normals (old study)"] = ("scale", raw_normals)
-    kept, ao = mapper.bake(D, w, all_modes, [args.bias, "esm"], ao_keys, "Oracle visibility (cube map)")
-    VF_hard, VF_esm = kept[args.bias], kept["esm"]
+    if args.only_compact:
+        all_modes, store = [args.bias], [args.bias]
+        ao_keys = {args.bias: (args.bias, normals)}
+        args.no_convergence, args.pipe_samples = True, []
+    else:
+        all_modes, store = list(HARD_MODES) + ["esm"], [args.bias, "esm"]
+        ao_keys = {f"{m}": (m, normals) for m in HARD_MODES}
+        ao_keys["scale / unoriented normals (old study)"] = ("scale", raw_normals)
+    kept, ao = mapper.bake(D, w, all_modes, store, ao_keys, "Oracle visibility (cube map)")
+    VF_hard, VF_esm = kept[args.bias], kept.get("esm")
     diag["ao"] = {k: quantiles(v) for k, v in ao.items()}
     VC = {}
     for lt in lights:
@@ -1204,7 +1257,7 @@ def run(args):
     # A6: convergence of the oracle itself.
     conv = {}
     if not args.no_convergence:
-        m2 = ShadowMapper(gaussians, eval_idx, normals, center, radius, 2 * args.shadow_res, args)
+        m2 = ShadowMapper(shadow_g, eval_idx, normals, center, radius, 2 * args.shadow_res, args)
         _, ao2 = m2.bake(D, w, [args.bias], [], {"a": (args.bias, normals)}, "Convergence: 2x shadow res")
         conv["oracle_res2x"] = (
             ao2["a"],
@@ -1234,7 +1287,8 @@ def run(args):
         del vis
     print(f"Visibility baked in {time.time() - t0:.1f}s")
 
-    l_needed = max(max(args.sh_orders), max(args.compact_sh_orders))
+    sh_orders = [] if args.only_compact else args.sh_orders
+    l_needed = max(sh_orders + args.compact_sh_orders)
     Y_all = real_sh(D, l_needed)
 
     def chunked(fn):
@@ -1247,7 +1301,7 @@ def run(args):
 
     print("Compact representations (C) ...")
     E_compact, approx_err = compact_study(
-        lights, normals, VF_hard, D, w,
+        lights, normals, VF_hard, {n: v[args.bias] for n, v in VC.items()}, D, w,
         args.cube_res, Y_all, args.compact_sh_orders, args.haar_counts, args.chunk,
     )
 
@@ -1259,7 +1313,7 @@ def run(args):
             str(out_dir / "envs" / f"{lt.name}.hdr"),
             img.cpu().numpy()[..., ::-1].copy(),
         )
-        VC_hard, VC_esm = VC[lt.name][args.bias], VC[lt.name]["esm"]
+        VC_hard, VC_esm = VC[lt.name][args.bias], VC[lt.name].get("esm")
 
         E = {
             "oracle": chunked(
@@ -1269,16 +1323,17 @@ def run(args):
         for name, (ao_c, vc_c, lts) in conv.items():
             E[name] = oracle_from_ao(lts[lt.name], normals, ao_c, vc_c[lt.name])
         for m in HARD_MODES:
-            if m != args.bias:
+            if m != args.bias and m in ao:
                 E[f"oracle_bias_{m}"] = oracle_from_ao(lt, normals, ao[m], VC[lt.name][m])
-        E["filt"] = chunked(
-            lambda s: oracle_like(lt, normals[s], D, w, VF_esm[s], VC_esm[s], clamp)
-        )
+        if VF_esm is not None:
+            E["filt"] = chunked(
+                lambda s: oracle_like(lt, normals[s], D, w, VF_esm[s], VC_esm[s], clamp)
+            )
         E["cos2"] = chunked(
             lambda s: oracle_like(lt, normals[s], D, w, VF_hard[s], VC_hard[s], cos_kernel_l2)
         )
         Y_cap_all = real_sh(lt.cap_dirs, l_needed)
-        for l in args.sh_orders:
+        for l in sh_orders:
             K = (l + 1) ** 2
             for mode in ("L", "V", "LV"):
                 E[f"sh{l}_{mode}"] = chunked(
@@ -1301,6 +1356,11 @@ def run(args):
         rows["_regions"].update({f"frac_{k}": int(v.sum()) / n_all for k, v in masks.items()})
         for name, e in E.items():
             rows[name] = metrics(e, E["oracle"], masks)
+            if name.startswith("C_"):
+                # Compression error alone: against the uncompressed cube map of the same target.
+                ref = E["C_" + name.split("_")[1] + "_cube"]
+                m_ref = metrics(e, ref, masks)
+                rows[name].update({f"{k}_vscube": v for k, v in m_ref.items() if k.startswith("nmae")})
             per_point[f"{lt.name}__{name}"] = e.cpu().numpy()
         per_point[f"{lt.name}__lit_frac"] = VC_hard.float().mean(1).cpu().numpy()
         results[lt.name] = rows
