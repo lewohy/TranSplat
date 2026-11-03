@@ -7,7 +7,10 @@
         "context": ".."
     },
     "shutdownAction": "none",
-    "runArgs": ["--gpus=all", "--ipc=host"],
+    "runArgs": [
+        "--gpus=all",
+        "--ipc=host"
+    ],
     // uv runs at container runtime, so its cache and managed Pythons live in named volumes that survive container rebuilds.
     // Volumes are keyed by the host user so users with different UIDs on a shared Docker daemon don't collide; the cache is shared across that user's devcontainers.
     "mounts": [
@@ -22,11 +25,16 @@
         "UV_LINK_MODE": "copy"
     },
     "remoteUser": "vscode",
+    "remoteEnv": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}"
+    },
     // -n keeps files Claude Code has already rewritten at runtime (e.g. .claude.json) instead of resetting them.
     "postCreateCommand": "git config --global --add safe.directory '*' && git config core.fileMode false && cp -rn .devcontainer/claude-config/. \"$CLAUDE_CONFIG_DIR\"/",
     // The zellij web client binds to the container's loopback only; the forwarded port exposes it on the host's localhost.
     "postStartCommand": "zellij web --daemonize",
-    "forwardPorts": [8082],
+    "forwardPorts": [
+        8082
+    ],
     "portsAttributes": {
         "8082": {
             "label": "zellij web",
