@@ -249,19 +249,6 @@
   text(size: 38pt, weight: "bold")[wavelet 적용 전 실험]
   v(0.6em)
   text(size: 18pt, fill: ink2)[TranSplat 그림자 개선 방향을 정하기 위한 측정 결과]
-  v(1fr)
-  grid(
-    columns: (auto, 1fr),
-    column-gutter: 1em,
-    row-gutter: 0.5em,
-    text(size: 13pt, fill: muted)[결론 미리보기],
-    text(
-      size: 13pt,
-    )[같은 메모리면 wavelet은 지금 방식(SH)보다 낫지 않음. 대신 기존 코드의 몇 가지 수정과 "광원 분리"가 훨씬 효과적.],
-
-    text(size: 13pt, fill: muted)[데모],
-    text(size: 13pt)[`demo.html` (압축 방식에 따라 그림자가 어떻게 뭉개지는지 직접 조작)],
-  )
   v(0.6cm)
 }
 
@@ -384,20 +371,22 @@
   #grid(
     columns: (1fr, auto, 1fr, auto, 1fr, auto, 1fr),
     column-gutter: 0.25cm,
-    step("①", "미리 계산 (bake)", "방향마다 그림자맵", vis-bake)[
-      물체를 둘러싼 방향 *1,200개*(구 위에 고르게)마다, 그 방향에서 물체를 보는 카메라로 *깊이 이미지*(그림자맵)를 그림.
+    step("①", "bake", "방향별 그림자맵", vis-bake)[
+      물체를 둘러싼 1,200개의 방향에서 물체를 보는 카메라로 그림자맵 생성
     ],
     arr,
-    step("②", "미리 계산 (bake)", "Gaussian마다 가림 판정", vis-test)[
-      Gaussian이 그림자맵의 깊이보다 뒤에 있으면 그 방향은 *가려짐(0)*, 아니면 *보임(1)*. 점마다 방향 1,200개짜리 가림 지도가 생김. 판정은 경계를 흐리게 하는 ESM + PCF.
+    step("②", "bake", "각 Gaussian 가림 판정", vis-test)[
+      Gaussian이 그림자맵의 깊이보다 뒤에 있으면 그 방향은 가려짐(0), 아니면 보임(1)으로 점마다 방향 1,200개짜리 occlusion map 생성
     ],
     arr,
-    step("③", "미리 계산 (bake)", "SH로 요약 저장", vis-sh)[
-      가림 지도를 SH(구면 위의 저주파 성분, 차수 3까지)로 투영해 점마다 *숫자 16개*만 저장. 날카로운 경계는 이 단계에서 뭉개짐.
+    step("③", "bake", "SH로 저장", vis-sh)[
+      occlusion map을 SH로 투영해 점마다 숫자 16개만 저장. *날카로운 경계는 이 단계에서 뭉개짐.*
     ],
     arr,
-    step("④", "다시 조명 (relight)", "새 조명과 곱하기", vis-relight)[
-      새 환경맵도 SH 16개로 요약 → 가림과 곱하고(Gaunt) 표면 방향(cosine)으로 적분 → *그림자가 들어간 밝기*(diffuse). 반사광(specular)은 가림을 쓰지 않음.
+    step("④", "relight", "새 조명 적용", vis-relight)[
+      새 환경맵도 SH 16개로 요약 \
+      → occlusion map 적용, 표면 방향으로 적분 \
+      → *그림자가 들어간 밝기*(diffuse).
     ],
   )
 ]
@@ -417,7 +406,8 @@
       #v(0.3em)
       - ③에서 가림 지도를 숫자 16개로 줄이면, "가려짐 ↔ 보임"이 급하게 바뀌는 경계가 부드럽게 뭉개짐.
       - 광원이 크면 넓은 범위를 평균하므로 티가 덜 남.
-      - 광원이 작고 경계 근처에 있으면 "얼마나 가려졌나"를 크게 틀림 → 그림자가 흐려지거나 엉뚱한 곳이 어두워짐.
+      - 광원이 작고 경계 근처에 있으면 오차가 커질 수 있음 \
+        → 그림자가 흐려지거나 엉뚱한 곳이 어두워짐.
       #v(0.4em)
     ],
     [
@@ -471,27 +461,36 @@
 // 4. 실험 대상
 // ---------------------------------------------------------------------------
 #slide(kicker: "질문", title: "이번 실험 대상")[
-  압축 방식을 SH 대신 *wavelet*으로 바꾸기 (Ng et al. 2003/2004).
-  wavelet은 신호를 크기가 다른 *블록 조각*으로 나눠, 중요한 조각만 골라 저장. 경계처럼 급한 변화에 적절할 수 있음.
+  압축 방식을 SH 대신 *wavelet*으로 바꾸기. wavelet은 신호를 크기가 다른 블록 조각으로 나눠, 중요한 조각만 골라 저장. \
+  -> 경계처럼 급한 변화에 적절할 수 있음.
 
   #v(0.5em)
   #grid(
     columns: (1fr, 1fr, 1fr),
     column-gutter: 0.8cm,
     callout[
-      #tag[A] *믿을 수 있는 정답인지*
+      #tag[A] *정확한 GT 필요*
       #v(0.2em)
-      #note[오차를 재려면 "압축하지 않은 정답"이 필요하다. 이 정답 계산 자체가 맞는지부터.]
+      #note[
+        - 오차를 재려면 "압축하지 않은 정답"이 필요
+        - 이 정답 계산 자체가 맞는지부터 확인 해야 함.
+      ]
     ],
     callout[
-      #tag[B] *압축이 원인인지*
+      #tag[B] *압축이 주 원인인지 확인*
       #v(0.2em)
-      #note[현재 코드에는 다른 오차원도 있다. 그것들을 고친 뒤에도 남는 오차가 대부분 "16개로 요약"에서 오는지.]
+      #note[
+        - 현재 코드에는 다른 오차 원인도 존재
+        - 고친 뒤에도 남는 오차가 대부분 "16개로 요약"에서 오는지 확인 필요
+      ]
     ],
     callout[
-      #tag[C] *wavelet이 확실히 나은가?*
+      #tag[C] *wavelet로 개선 가능한지*
       #v(0.2em)
-      #note[같은 저장 공간을 줬을 때 wavelet의 오차가 SH보다 *2배 이상* 작은지.]
+      #note[
+        - 같은 저장 공간을 줬을 때 wavelet의 오차가 SH보다 충분히 작은지.
+        - 사용하는 메모리가 허용 범위 안에 있는지.
+      ]
     ],
   )
   #v(0.7em)
@@ -507,12 +506,13 @@
 // ---------------------------------------------------------------------------
 #slide(kicker: "방법 · 실험 조건", title: "실험 설계: 한 번에 한 요소만 바꿔서 비교")[
   #grid(
+    align: horizon,
     columns: (2fr, 1fr),
     column-gutter: 1.2cm,
     [
       #table(
         columns: (auto, 1fr),
-        align: (left + top, left + top),
+        align: (center, left),
         table.hline(stroke: 0.6pt + rule),
         text(fill: muted)[장면], [lego (Gaussian 97.5만 개 중 표면 점 4만 개 평가)],
         table.hline(stroke: 0.6pt + rule),
@@ -521,8 +521,9 @@
         table.hline(stroke: 0.6pt + rule),
         text(fill: muted)[정답], [압축 없이 방향 약 2.5만 개 각각에서 그림자맵을 그려 직접 계산],
         table.hline(stroke: 0.6pt + rule),
-        text(fill: muted)[비교], [정답에서 한 요소만 바꿈 
-        → 그 요소가 만드는 오차만 분리],
+        text(fill: muted)[비교],
+        [정답에서 한 요소만 변경
+          → 그 요소가 만드는 오차만 분리],
         table.hline(stroke: 0.6pt + rule),
       )
     ],
@@ -584,7 +585,7 @@
     [
       *지표: 그림자 경계 오차*
       #v(0.1em)
-      #legend(((name: "정답", color: ink), (name: "어떤 방식의 추정", color: c-blue)))
+      #legend(((name: "정답", color: ink), (name: "추정", color: c-blue)))
       #vis-metric
       #callout[
         오차 = 반그림자 영역에서의 평균 |추정 − 정답| ÷ 밝은 곳의 평균 밝기
@@ -1101,7 +1102,7 @@
         columns: (1fr, 1fr),
         column-gutter: 0.4cm,
         row-gutter: 0.25cm,
-        node(color: c-orange)[*작은 광원* #note[(해, 조명)]], node(color: c-aqua)[*나머지* #note[(하늘, 벽 반사)]],
+        node(color: c-orange)[*작은 광원* #note[(태양, 조명)]], node(color: c-aqua)[*나머지* #note[(하늘, 벽 반사)]],
         node(color: c-orange)[다시 조명할 때 그림자맵으로 *직접* 계산],
         node(color: c-aqua)[기존 SH 16개 그대로\ #note[부드러운 빛이라 뭉개져도 티가 덜 남]],
       )

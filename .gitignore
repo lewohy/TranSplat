@@ -15,3 +15,4 @@ eval
 **/tmp
 
 /sample
+!/report/**/*.png
