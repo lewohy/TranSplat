@@ -534,8 +534,8 @@
 // ---------------------------------------------------------------------------
 // 6. 실험 설계: 지표와 비교 대상
 // ---------------------------------------------------------------------------
-#slide(kicker: "방법 · 지표와 비교 대상", title: "실험 설계: 한 번에 한 요소만 바꿔서 비교")[
-  #let vis-metric = box(width: 15.5cm, height: 5.4cm, {
+#slide(kicker: "방법 · 지표와 비교 대상", title: "실험 설계: 무엇을 재고, 무엇과 비교했나")[
+  #let vis-metric = box(width: 15.5cm, height: 5.0cm, {
     let W = 14.5cm
     let H = 3.6cm
     let ox = 0.6cm
@@ -586,31 +586,36 @@
       *지표: 그림자 경계 오차*
       #v(0.1em)
       #legend(((name: "정답", color: ink), (name: "추정", color: c-blue)))
-      #vis-metric
-      #callout[
-        오차 = 반그림자 영역에서의 평균 |추정 − 정답| ÷ 밝은 곳의 평균 밝기
+      #scale(85%, reflow: true, origin: top + left, vis-metric)
+      #[
+        #set text(size: 12pt)
+        $ "오차" = (limits("평균")_(i in P) abs(E_i - E_i^"정답")) / (limits("평균")_(i in L) E_i^"정답") $
+        #note[$E_i$: 점 $i$의 밝기 · $P$: 반그림자 점 · $L$: 밝은 곳 점. 예) 0.2 = 경계에서 밝은 곳 밝기의 20%만큼 틀림. 작을수록 좋음.]
       ]
-      #note[0.2 = "그림자 경계에서 평균적으로 밝은 곳 밝기의 20%만큼 틀린다". 작을수록 좋다.]
     ],
     [
-      *비교*
+      *비교 대상: 아래 5가지를 각각 계산해 정답과 비교*
       #v(0.2em)
-      #set text(size: 13pt)
+      #set text(size: 12pt)
       #table(
-        columns: (1fr, auto),
-        align: (left + top, left + top),
+        columns: (auto, 1fr, auto),
+        align: (left + horizon, left + horizon, center + horizon),
+        inset: (x: 0.4em, y: 0.5em),
         table.hline(stroke: 0.6pt + rule),
-        [현재 TranSplat 코드 그대로], tag[B],
+        text(fill: muted)[계산한 것], text(fill: muted)[알고 싶은 것], text(fill: muted)[질문],
         table.hline(stroke: 0.6pt + rule),
-        [현재 코드에서 정답 계산과 같은 수정만 적용], tag[B],
-        table.hline(stroke: 0.6pt + rule),
-        [정답에서 SH 압축만 추가\ #note[(16 → 100 → 256개)]], tag[B C],
-        table.hline(stroke: 0.6pt + rule),
-        [정답에서 wavelet 압축만 추가\ #note[(8 → 256개)]], tag[C],
-        table.hline(stroke: 0.6pt + rule),
-        [광원만 따로 그림자맵으로 직접 계산], tag(color: c-aqua)[대안],
+        [① 현재 TranSplat 그대로], [지금 얼마나 틀리나], tag[B],
+        table.hline(stroke: 0.3pt + rule),
+        [② ① + 쉬운 수정 4가지], [수정만으로 얼마나 개선되는지], tag[B],
+        table.hline(stroke: 0.3pt + rule),
+        [③ 정답 + SH 압축만\ #note[(계수 16 / 100 / 256개)]], [SH 압축 오차], [#tag[B] #tag[C]],
+        table.hline(stroke: 0.3pt + rule),
+        [④ 정답 + wavelet 압축만\ #note[(계수 8 → 256개)]], [같은 메모리면\ ③보다 나은가], tag[C],
+        table.hline(stroke: 0.3pt + rule),
+        [⑤ 광원만 그림자맵으로], [대안이 될까], tag(color: c-aqua)[대안],
         table.hline(stroke: 0.6pt + rule),
       )
+      #note[③ ④는 정답에서 압축 하나만 넣은 것 → 늘어난 오차가 곧 압축 탓.]
     ],
   )
 ]
@@ -1022,8 +1027,8 @@
       #text(size: 12.5pt)[
         - Haar wavelet은 정사각형 블록(큰 블록 → 작은 블록)을 겹쳐서 그림
         - 경계가 기울거나 휘어 있으면 경계가 지나는 칸마다 작은 블록이 필요
-        - 적은 개수로는 계단처럼 깨짐 (SH는 부드럽게 뭉갬)
-        - → 결국 둘 다 비슷한 오차 발생
+        - 적은 개수로는 계단처럼 깨짐 (SH는 부드럽게 뭉갬) \
+          → 결국 둘 다 비슷한 오차 발생
       ]
 
       #v(0.3em)
@@ -1038,12 +1043,6 @@
       *3. 큰 광원(30°)에서는 SH가 오히려 나음*
       #text(size: 12.5pt)[
         - 부드러운 그림자는 SH가 원래 잘 담음
-      ]
-
-      #v(0.3em)
-      #callout(color: c-aqua)[
-        #set text(size: 12.5pt)
-        *데모로 확인* (`demo.html`): 표면 기울기 0°(경계가 블록 격자와 나란함)에서는 wavelet이 같은 개수 기준 2\~2.7배 나음. 25° 이상 기울이면 이점이 사라짐.
       ]
     ],
     [
@@ -1162,11 +1161,15 @@
         columns: (auto, 1fr),
         align: (left + top, left + top),
         table.hline(stroke: 0.6pt + rule),
-        tag[A], [정답 계산의 문제 5개를 찾아 고침 (그중 3개는 기존 TranSplat에도 있음)],
+        tag[A],
+        [
+          정답 계산의 문제 5개 수정 \
+          (3개는 기존 TranSplat에도 있음)
+        ],
         table.hline(stroke: 0.6pt + rule),
-        tag[B], [예. 4가지 수정 후 남는 오차는 대부분 압축],
+        tag[B], [Yes. 4가지 수정 후 남는 오차는 대부분 압축],
         table.hline(stroke: 0.6pt + rule),
-        tag(color: c-orange)[C], [아니오. 같은 메모리면 wavelet ≈ SH],
+        tag(color: c-orange)[C], [No. 같은 메모리면 wavelet ≈ SH],
         table.hline(stroke: 0.6pt + rule),
       )
       #callout(color: c-orange)[
@@ -1178,16 +1181,17 @@
       + 실제 HDR 환경맵(실내, 해가 있는 야외)으로 재검증
     ],
     [
-      *한계 (이 결과를 해석할 때 주의)*
+      *한계*
       #set text(size: 13.5pt)
       - 합성 조명(균일한 하늘 + 원판)만 씀. 실제 환경맵은 광원을 떼어낸 나머지도 복잡할 수 있음.
-      - 장면이 lego 하나뿐.
+      - lego에 대해서만 실험해봄
       - 2° 광원은 정답 자체의 불확실성(0.09)이 오차와 비슷한 크기라 추세만 봄.
       - 광원 분리 2048px 수치는 같은 해상도 정답과 비교한 것이라 낙관적 (실제로는 0.02\~0.09 더 클 수 있음).
-      - wavelet에는 여러 종류(Haar, Daubechies 같은 부드러운 wavelet, 구면 wavelet 등)가 있는데 가장 단순한 Haar만 비교함. 다만 참고한 triple product 방식(Ng 2004)이 Haar 기준이라 실제 후보도 Haar.
+      - wavelet에는 여러 종류(Haar, Daubechies 같은 부드러운 wavelet, 구면 wavelet 등)가 있는데 가장 단순한 Haar만 비교함. \
+        (다만 참고한 triple product 방식(Ng 2004)이 Haar 기준이라 실제 후보도 Haar)
 
       #v(0.3em)
-      *의견을 듣고 싶은 것*
+      *검토*
       - 판단 기준(같은 메모리에서 2배)이 적절한지
       - 광원 분리 방향에 놓친 함정이 없는지
       - 재검증에 쓸 실제 HDR 환경맵 추천
