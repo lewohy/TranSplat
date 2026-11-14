@@ -233,6 +233,20 @@ def parse_args() -> argparse.Namespace:
         help="Gaussians to evaluate (0 = all; visibility needs ~4 bytes x points x texels of GPU memory)",
     )
     parser.add_argument("--min-opacity", type=float, default=0.5)
+    parser.add_argument(
+        "--drop-dark",
+        type=float,
+        default=0.0,
+        help="Remove opaque Gaussians whose base color luminance is below this from every shadow map "
+        "and from the eval pool, pipe* rows included (0 = off). Scene bounds are computed before "
+        "removal. lego was trained on a black background and has a black sheet around the base plate.",
+    )
+    parser.add_argument(
+        "--eval-idx-from",
+        type=Path,
+        default=None,
+        help="per_point.npz of an earlier run: reuse its eval points (minus dropped ones) for a paired comparison",
+    )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
         "--chunk",
@@ -1181,6 +1195,17 @@ def run(args):
         shadow_g["opacity"] = gaussians["opacity"].detach().clone()
         shadow_g["opacity"][dist > radius] = -30.0
     diag["scene"]["n_culled"] = 0 if args.keep_floaters else int((dist > radius).sum())
+    dropped = torch.zeros_like(opaque)
+    if args.drop_dark > 0:
+        base = (rt.C0 * gaussians["features_dc"].detach()[:, 0, :] + 0.5).clamp(0, 1)
+        lum = base @ torch.tensor([0.2126, 0.7152, 0.0722], device=device)
+        dropped = opaque & (lum < args.drop_dark)
+        gaussians["opacity"] = gaussians["opacity"].detach().clone()
+        gaussians["opacity"][dropped] = -30.0
+        if shadow_g is not gaussians:
+            shadow_g["opacity"][dropped] = -30.0
+        opaque = opaque & ~dropped
+    diag["scene"]["n_dropped_dark"] = int(dropped.sum())
 
     # A3: evaluate only Gaussians the training views see, with normals oriented towards them.
     cameras_path = args.cameras or args.ply.parents[2] / "cameras.json"
@@ -1204,7 +1229,10 @@ def run(args):
     diag["scene"]["up"] = up.tolist()
 
     pool = candidates[seen]
-    if args.num_eval_points and pool.numel() > args.num_eval_points:
+    if args.eval_idx_from is not None:
+        pool = torch.from_numpy(np.load(args.eval_idx_from)["eval_idx"]).to(device)
+        pool = pool[~dropped[pool]]
+    elif args.num_eval_points and pool.numel() > args.num_eval_points:
         pool = pool[torch.randperm(pool.numel(), device=device)[: args.num_eval_points]]
     eval_idx = pool.sort().values
     diag["views"]["n_eval"] = int(eval_idx.numel())

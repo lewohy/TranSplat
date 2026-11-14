@@ -44,6 +44,12 @@ def main():
         g = dict(g)
         g["opacity"] = g["opacity"].detach().clone()
         g["opacity"][dist > radius] = -30.0
+    if meta.get("drop_dark", 0) > 0:
+        g = dict(g)
+        base = (rt.C0 * g["features_dc"].detach()[:, 0, :] + 0.5).clamp(0, 1)
+        lum = base @ torch.tensor([0.2126, 0.7152, 0.0722], device=xyz.device)
+        g["opacity"] = g["opacity"].detach().clone()
+        g["opacity"][opaque & (lum < meta["drop_dark"])] = -30.0
 
     eval_idx = torch.from_numpy(pp["eval_idx"]).to(device)
     normals = torch.from_numpy(pp["normals_sh"]).to(device)
