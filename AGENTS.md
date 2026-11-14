@@ -3,7 +3,7 @@
 이 저장소에서 작업하는 에이전트(Claude 세션 등)를 위한 인수인계 문서입니다.
 작업을 시작하기 전에 전체를 읽고, 작업이 끝날 때마다 아래 [문서 유지 규칙](#문서-유지-규칙)에 따라 갱신하세요.
 
-마지막 갱신: 2026-11-02
+마지막 갱신: 2026-11-14
 
 ---
 
@@ -23,6 +23,9 @@ TranSplat(arXiv 2503.22676, 본 저장소)의 한계 중 하나인 **고주파(�
    - 판정은 ESM(`exp(-α·깊이차)`, `α = 8/scene_radius`) + 8-tap Poisson PCF, bias = 3×max_scale.
    - `scene_radius = 1.8 × (중심에서 가장 먼 Gaussian 거리)`.
 2. **Phase 2 diffuse (`phase_2_decoupled_relight`)**: 환경맵을 1200방향 최근접 픽셀 샘플링으로 SH 투영(`compute_global_sh_coeffs`) → Gaunt tensor로 `L·V` 곱(l≤3에서 절단) → l≤2 clamped cosine으로 irradiance.
+
+3. **Phase 2 색 변환**: diffuse는 `c_new = c_old × E_target/(E_source + floor)` (floor = 0.05×가림 없는 source irradiance, 최대 3배). specular(l≥1 rest 계수)도 가려진 target 조명 `L·V`를 반사 방향에서 읽어 변환하므로 V가 들어간다 (A_l 추정은 가림 없는 source 조명으로 나눔). 2026-11-14 확인, 이전 "specular는 V를 안 씀" 설명은 틀림.
+   - study는 target irradiance E만 평가했다. 최종 색에 쓰이는 비율(source 쪽 그림자 제거 포함), Gaussian 크기에 따른 화면상 그림자 경계, specular 경로는 아직 측정하지 않았다.
 
 좌표 규약: SH 방향 공간은 world 대비 **x축이 뒤집혀 있다** (코드 곳곳의 x-flip 참고).
 `evaluate_sh_bases_torch`는 l≤3까지만 구현되어 있고, `l_max`가 PLY의 `sh_degree`에 묶여 있다.
@@ -100,11 +103,22 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
 - 합성 환경맵(균일 ambient + 원판) 기준이다. 실제 HDR에서는 광원 분리 후 남는 부분이 균일하지 않아 hybrid의 ambient 오차가 커질 수 있다. 저장소에 실제 HDR은 없다.
 
 ### 3.5 발표 자료 (2026-11-02)
-- `report/experiment-001/report.typ`: 연구미팅용 슬라이드 13장 (TranSplat 그림자 단계 → 문제 → 질문 A/B/C → 실험 조건·지표 → A 정답 계산 문제 5개와 수정 결과 → B → C·메모리 환산 → 결과 분석 → 광원 분리 → 결론·한계). 5번 슬라이드 오른쪽은 lego 사진 자리(비워 둠). 답 강조는 `verdict` 컴포넌트.
+- `report/experiment-001/report.typ`: 연구미팅용 슬라이드 21장 (TranSplat 그림자 구현 개요 → 1단계 bake ① 깊이 이미지 렌더 (+ 개념 3D 그림·실제 lego 깊이 이미지 2장) / ② 가림 판정(ESM+PCF) / ③ SH 누적 → 2단계 relight ④ → 문제 → 질문 A/B/C → 실험 조건·지표 → A 정답 계산 문제 5개와 수정 결과 → 검은 막 2장 → B → C·메모리 환산 → 결과 분석 → 광원 분리 → 결론·한계). ①~③은 코드에서 방향 1,200개마다 한 번에 도는 루프라 1단계로 묶고, 위치 표시는 `flow-nav`. 실험 조건 슬라이드 오른쪽은 lego 사진(`r_10.png`). 답 강조는 `verdict` 컴포넌트.
+  - 파일 구성: 색·컴포넌트·그림 도우미는 `theme.typ`, set 규칙(페이지·글꼴)은 `report.typ`에만 둔다. `depth-shell.typ`은 단독 컴파일용이 아니라 `depth-example`, `black-shell` 슬라이드 묶음을 내보내고 `report.typ`가 import해서 배치한다. 컴파일은 `report.typ` 하나.
   - 정답 계산 문제 중 1(장면 크기), 2(normal 부호), 5(잡티)는 `radiance_transfer_TranSplat.py`에도 그대로 있다.
   - 메모리는 실험에서 직접 재지 않았고 계수 수로 환산했다 (fp32, Haar 위치 4바이트 가정. lego 97.5만 개 기준 SH256 ≈ Haar128 ≈ 1.0 GB).
 - `report/experiment-001/demo.html`: 한 점의 가림 지도를 SH / Haar로 압축해 비교하는 브라우저 데모 (실험과 같은 cube 64, top-k Haar, l≤15 SH).
 - 데모로 확인한 경향 (합성 장면, 추세만 참고): 표면 기울기 0°(가림 경계가 cube 격자와 나란함)에서는 Haar가 같은 개수 기준 2~2.7배 낫고, 25° 이상 기울면 0.6~1.4배로 이점이 사라진다. 같은 메모리 기준은 대부분 1 이하. 3.4의 "곡선 경계에서 Haar 비효율" 해석과 맞는다.
+
+### 3.6 lego의 "검은 막"과 깊이 이미지 설명 자료 (2026-11-14)
+- 설명 슬라이드 (`report/experiment-001/depth-shell.typ`, report.typ 안에 포함. cetz 개념 그림 + 실제 렌더), 그림은 `report/experiment-001/fig/make_depth_figs.py`, `make_shell_figs.py`로 생성.
+- lego 학습 사진은 배경이 검정(`white_background=False`)이라, 판 높이에 납작한 검은 Gaussian 원판이 학습됨: 장면 반지름(1.92) 안 불투명 점의 7.8%(43,955개), 밝기 < 0.03, 높이 중앙값이 판 바닥 수준. 학습 시점(r_10)을 흰 배경으로 렌더하면 화면 전체가 alpha > 0.5. robust radius 기반 잡티 제거로는 안 지워진다.
+- 영향 (신뢰): `shadow_frequency_study.py --drop-dark 0.03 --eval-idx-from <v3>/per_point.npz`로 막(밝기 < 0.03인 불투명 점 45,797개, 반지름 밖 포함)을 그림자맵·평가점에서 지우고 v3와 같은 설정으로 재실행 → `.../shadow_frequency_study_v4_nodark/results.md`. v3와 같은 평가점 36,826개로 비교.
+  - 정답 밝기: 막이 아래쪽 ambient(전방위 균일 0.2)를 바닥처럼 가려 v3 정답이 평균 2.2% 어두웠음(lit 평균 대비, 점의 약 38%가 1% 넘게 밝아짐). 원판 광원 그림자 판정이 바뀐 점은 1~5%. 반그림자 비율은 그대로. AO 중앙값 0.615 → 0.659.
+  - penumbra nMAE(2/5/10/30°) v3 → v4: `sh3_LV` 0.177/0.179/0.167/0.114 → 0.176/0.177/0.163/0.110, `pipefix1200_hard` 0.217/0.216/0.202/0.153 → 0.213/0.211/0.195/0.146, C 비율(V, 같은 메모리) 0.98/1.04/1.00/0.60 → 0.98/1.01/0.95/0.58. **3.4의 B·C 결론은 유지.**
+  - 실제 phase 1 그대로인 `pipe1200`만 0.46/0.54/0.35/0.26 → 0.38/0.59/0.36/0.28로 ±0.08 흔들림.
+  - `shadow_hybrid_check.py`도 `drop_dark`를 읽지만 v4로는 아직 안 돌림 (원판 그림자 판정 변화가 작아 결론 영향은 없을 것으로 봄).
+- 현재 phase 1은 expected depth + `depth > 0`이면 유효라서, 옅은 Gaussian만 걸린 픽셀도 가림체가 된다 (고친 반지름 기준 한 방향 깊이 이미지에서 깊이가 찍힌 픽셀의 24%가 alpha < 0.5). 쉬운 수정에 "alpha 0.5 미만 픽셀 무시(또는 median depth)"를 추가 검토.
 
 ## 4. 다음 할 일
 
@@ -144,10 +158,29 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
   - typst/tinymist는 nix env 경로를 시스템 폰트로 찾지 않아 이 ENV가 필요하다. typst CLI와 `tinymist lsp` 모두 `TYPST_FONT_PATHS`를 읽고, buildEnv의 심볼릭 링크도 따라간다 (임시 폴더로 확인).
   - fontconfig 기반 프로그램(브라우저, matplotlib 등)은 이 경로를 모른다. 필요하면 fontconfig 설정을 따로 추가해야 한다.
   - 재빌드 전에는 Pretendard OTF를 받아 `--font-path`로 지정해 컴파일했다.
+- typst `@preview` 패키지(cetz 0.4.2 등)는 첫 컴파일 때 인터넷에서 받아 캐시한다 (2026-11-14 컨테이너에서 동작 확인).
 - 컨테이너에 브라우저/node가 없다. HTML 확인은 scratch에 playwright Chromium을 받고, 부족한 공유 라이브러리를 `apt-get download`(사용자 경로 apt lists)로 받아 `LD_LIBRARY_PATH`로 지정해 headless 실행했다.
 - 이 컨테이너 안에서 `nix build`는 권한 오류로 안 된다 (2026-10-28 기준. flake 변경은 컨테이너 재빌드로 반영).
 - `git`은 소유자 불일치로 `git -c safe.directory='*' ...` 형태로 실행해야 한다.
-- 커밋 메시지: 기능 단위로 분리, 짧은 한국어 제목, 상세는 본문.
+
+## 8. 커밋 규칙
+
+- 제목은 `타입: 짧은 한국어 요약`이고, 요약은 명사형으로 끝낸다 (`…추가`, `…수정`, `…구현`).
+- 타입은 Conventional Commits 중 하나를 쓴다.
+  - `feat`: 새 기능, 또는 사용자가 볼 수 있는 동작 변경 (예: 새 실험 스크립트, 스크립트에 새 옵션).
+  - `fix`: 버그 수정.
+  - `refactor`: 동작은 그대로 두고 코드만 바꿈.
+  - `perf`: 성능 개선.
+  - `style`: 서식이나 import 순서만 바꿈 (코드 변경 없음).
+  - `test`: 테스트 추가·수정.
+  - `docs`: 문서만 바꿈 (AGENTS.md, `report/` 발표 자료 포함).
+  - `build`: 의존성과 빌드 설정 (`pyproject.toml`, `uv.lock`, `flake.nix`, Dockerfile, submodule).
+  - `ci`: CI 설정.
+  - `chore`: 앱 코드도 빌드도 아닌 나머지 정리 (편집기 설정, `.gitignore`, devcontainer 편의 설정 등).
+  - `revert`: 이전 커밋 되돌리기.
+- 변경은 가능한 한 위 타입 중 하나에 맞춘다. 정말 맞는 것이 없을 때만 다른 접두어를 쓴다.
+- 본문은 제목 아래 빈 줄을 두고 `-` 목록으로 세부 내용을 적는다. 빈 줄이 없으면 git이 메시지 전체를 제목으로 읽는다.
+- 변경을 단위별로 나눈다. 각 커밋은 따로 떼어도 동작해야 한다. 이 저장소에는 lint/format/typecheck 설정이 없으므로, 바꾼 스크립트는 실행(가능하면 `--self-test`)되고 `report.typ`는 컴파일되는 상태로 커밋한다.
 
 ---
 
