@@ -1,15 +1,8 @@
 // 연구미팅: wavelet 적용 전 실험 (고주파 그림자 개선 방향 검토)
 // 컴파일: typst compile report.typ  (devcontainer는 TYPST_FONT_PATHS로 Pretendard를 찾는다. 로컬은 아래 목록 순서로 대체)
 
-#let ink = rgb("#0b0b0b")
-#let ink2 = rgb("#52514e")
-#let muted = rgb("#8a8984")
-#let rule = rgb("#e4e3df")
-#let soft = rgb("#f4f3f0")
-#let c-blue = rgb("#2a78d6")
-#let c-orange = rgb("#eb6834")
-#let c-aqua = rgb("#1baf7a")
-#let c-base = rgb("#a9a8a3")
+#import "theme.typ": *
+#import "depth-shell.typ": depth-example, black-shell
 
 #set page(
   paper: "presentation-16-9",
@@ -36,207 +29,6 @@
 #set enum(spacing: 0.75em)
 #set table(stroke: none, inset: (x: 0.5em, y: 0.42em))
 
-#let slide(title: none, kicker: none, body) = {
-  pagebreak(weak: true)
-  if kicker != none {
-    text(size: 12pt, fill: c-blue, weight: "semibold", kicker)
-    v(0.15em)
-  }
-  if title != none {
-    text(size: 23pt, weight: "bold", title)
-    v(0.45em)
-  }
-  body
-}
-#let note(body) = text(size: 11.5pt, fill: ink2, body)
-#let callout(body, color: c-blue) = block(
-  width: 100%,
-  breakable: false,
-  inset: (x: 0.9em, y: 0.7em),
-  radius: 6pt,
-  fill: color.lighten(90%),
-  stroke: (left: 3pt + color),
-  body,
-)
-#let tag(body, color: c-blue) = box(
-  inset: (x: 0.45em, y: 0.2em),
-  radius: 4pt,
-  fill: color.lighten(85%),
-  text(size: 12pt, weight: "semibold", fill: color.darken(25%), body),
-)
-// 질문(A/B/C)에 대한 답을 강조하는 박스. 결과 슬라이드마다 같은 모양으로 쓴다.
-#let verdict(q, answer, color: c-blue, body) = block(
-  width: 100%,
-  breakable: false,
-  inset: (x: 0.8em, y: 0.65em),
-  radius: 6pt,
-  fill: color.lighten(88%),
-  stroke: 1.5pt + color,
-  grid(
-    columns: (auto, 1fr),
-    column-gutter: 0.8em,
-    align: horizon,
-    box(inset: (x: 0.6em, y: 0.4em), radius: 5pt, fill: color, text(
-      size: 21pt,
-      weight: "bold",
-      fill: white,
-    )[#q: #answer]),
-    text(size: 12.5pt, body),
-  ),
-)
-#let placeholder(w, h, body) = rect(
-  width: w,
-  height: h,
-  radius: 6pt,
-  fill: soft,
-  stroke: (paint: muted, thickness: 1pt, dash: "dashed"),
-  align(center + horizon, text(size: 13pt, fill: muted, body)),
-)
-
-#let fmt(v, d: 2) = {
-  let s = str(calc.round(v, digits: d))
-  let p = s.split(".")
-  if p.len() == 1 { s + "." + "0" * d } else { s + "0" * (d - p.at(1).len()) }
-}
-
-// 그림 도우미. 모두 box 안에서 왼쪽 위 기준 좌표로 쓴다.
-#let dotc(x, y, r: 0.06cm, fill: ink2) = place(top + left, dx: x - r, dy: y - r, circle(
-  radius: r,
-  fill: fill,
-  stroke: none,
-))
-#let lbl(x, y, body, size: 10pt, fill: ink2) = place(top + left, dx: x, dy: y, text(size: size, fill: fill, body))
-#let seg(x0, y0, x1, y1, stroke: 1pt + ink2) = place(top + left, curve(stroke: stroke, curve.move((x0, y0)), curve.line(
-  (x1, y1),
-)))
-#let arrow(x0, y0, x1, y1, paint: ink2, th: 1pt, head: 0.18cm) = {
-  let dx = (x1 - x0) / 1cm
-  let dy = (y1 - y0) / 1cm
-  let l = calc.sqrt(dx * dx + dy * dy)
-  let ux = dx / l
-  let uy = dy / l
-  let bx = x1 - ux * head
-  let by = y1 - uy * head
-  seg(x0, y0, bx, by, stroke: th + paint)
-  place(top + left, curve(
-    fill: paint,
-    stroke: none,
-    curve.move((x1, y1)),
-    curve.line((bx - uy * head * 0.55, by + ux * head * 0.55)),
-    curve.line((bx + uy * head * 0.55, by - ux * head * 0.55)),
-    curve.close(),
-  ))
-}
-#let cam(x, y, color: c-blue) = {
-  place(top + left, dx: x - 0.2cm, dy: y - 0.13cm, rect(width: 0.3cm, height: 0.26cm, radius: 1.5pt, fill: color))
-  place(top + left, curve(
-    fill: color,
-    stroke: none,
-    curve.move((x + 0.1cm, y)),
-    curve.line((x + 0.28cm, y - 0.13cm)),
-    curve.line((x + 0.28cm, y + 0.13cm)),
-    curve.close(),
-  ))
-}
-#let cross(x, y, s: 0.12cm, stroke: 1.4pt + c-orange) = {
-  seg(x - s, y - s, x + s, y + s, stroke: stroke)
-  seg(x - s, y + s, x + s, y - s, stroke: stroke)
-}
-
-// Grouped bar chart. data: one array per series, one value per category.
-#let bars(
-  cats,
-  series,
-  data,
-  ymax: 0.6,
-  ticks: (0, 0.2, 0.4, 0.6),
-  h: 6.2cm,
-  w: 15cm,
-  refs: (),
-  xlabel: none,
-  ylabel: none,
-) = {
-  let lm = 1.3cm
-  let n = cats.len()
-  let m = series.len()
-  let gw = w / n
-  let bw = gw * 0.78 / m
-  let y(v) = h - h * v / ymax
-  let rm = if refs.len() > 0 { 2.7cm } else { 0cm }
-  block(width: lm + w + rm, height: h + 1.2cm, {
-    for t in ticks {
-      place(top + left, dx: lm, dy: y(t), line(length: w, stroke: 0.6pt + rule))
-      place(top + left, dx: 0cm, dy: y(t) - 0.45em, box(width: lm - 0.25cm, align(right, text(
-        size: 11pt,
-        fill: muted,
-        fmt(t, d: 1),
-      ))))
-    }
-    for (j, c) in cats.enumerate() {
-      for (i, s) in series.enumerate() {
-        let v = data.at(i).at(j)
-        let x0 = lm + gw * j + gw * 0.11 + bw * i
-        place(top + left, dx: x0, dy: y(calc.min(v, ymax)), rect(
-          width: bw - 2pt,
-          height: h * calc.min(v, ymax) / ymax,
-          fill: s.color,
-          radius: (top-left: 3pt, top-right: 3pt),
-        ))
-        place(top + left, dx: x0 - 0.3cm, dy: y(calc.min(v, ymax)) - 0.5cm, box(width: bw - 2pt + 0.6cm, align(
-          center,
-          text(size: 9.5pt, fill: ink2, fmt(v)),
-        )))
-      }
-      place(top + left, dx: lm + gw * j, dy: h + 0.18cm, box(width: gw, align(center, text(size: 13pt, c))))
-    }
-    for r in refs {
-      place(top + left, dx: lm, dy: y(r.at(0)), line(length: w, stroke: (paint: ink2, thickness: 1pt, dash: "dashed")))
-      place(top + left, dx: lm + w + 0.15cm, dy: y(r.at(0)) - 0.5em, box(width: rm - 0.15cm, text(
-        size: 10pt,
-        fill: ink2,
-        weight: "semibold",
-        r.at(1),
-      )))
-    }
-    place(top + left, dx: lm, dy: h, line(length: w, stroke: 0.8pt + ink2))
-    if xlabel != none {
-      place(top + left, dx: lm, dy: h + 0.72cm, box(width: w, align(center, text(size: 11pt, fill: muted, xlabel))))
-    }
-  })
-}
-#let legend(series) = {
-  set text(size: 12.5pt)
-  series
-    .map(s => box[#box(width: 0.8em, height: 0.8em, radius: 2pt, fill: s.color, baseline: 0.1em) #h(0.3em)#s.name])
-    .join(h(1.1em))
-}
-
-// 한 점에서 본 방향별 가림 (1차원 예시): 방향 a~b가 가려짐. 앞 몇 개 주파수로 요약한 근사와 그 계수.
-#let occ-a = 2.0
-#let occ-b = 3.1
-#let occ-coeffs = {
-  let a = occ-a
-  let b = occ-b
-  let cs = (1 - (b - a) / (2 * calc.pi),)
-  for k in range(1, 9) {
-    cs.push(-(calc.sin(k * b) - calc.sin(k * a)) / (k * calc.pi))
-    if k < 8 { cs.push((calc.cos(k * b) - calc.cos(k * a)) / (k * calc.pi)) }
-  }
-  cs
-}
-#let coeff-bars(cs, x, mid, hmax, bw: 0.13cm, gap: 0.04cm, color: c-orange) = {
-  let vmax = calc.max(..cs.map(calc.abs))
-  for (i, v) in cs.enumerate() {
-    let hh = hmax * calc.abs(v) / vmax
-    place(
-      top + left,
-      dx: x + i * (bw + gap),
-      dy: if v > 0 { mid - hh } else { mid },
-      rect(width: bw, height: hh, fill: color, radius: 1pt),
-    )
-  }
-  place(top + left, dx: x, dy: mid, line(length: cs.len() * (bw + gap), stroke: 0.5pt + ink2))
-}
 
 // ---------------------------------------------------------------------------
 // 1. 표지
@@ -253,140 +45,461 @@
 }
 
 // ---------------------------------------------------------------------------
-// 2. TranSplat 그림자 계산 단계
+// 2~6. TranSplat 그림자 계산 단계: 개요 → 1단계 bake ①②③ → 2단계 relight ④
 // ---------------------------------------------------------------------------
-#slide(kicker: "배경", title: "TranSplat의 그림자 구현 방식")[
-  #let vis-bake = box(width: 6cm, height: 3.2cm, {
-    let cx = 2.4cm
-    let cy = 1.65cm
-    let r = 1.45cm
-    place(top + left, dx: cx - r, dy: cy - r, circle(radius: r, stroke: 0.8pt + rule))
-    for i in range(70) {
-      let z = 1 - 2 * (i + 0.5) / 70
-      let rr = calc.sqrt(1 - z * z)
-      let phi = i * 2.39996
-      let front = rr * calc.sin(phi) > 0
-      dotc(
-        cx + r * rr * calc.cos(phi),
-        cy - r * z,
-        r: if front { 0.045cm } else { 0.03cm },
-        fill: if front { ink2 } else { c-base.lighten(30%) },
-      )
+// 단계 그림. 개요와 단계별 슬라이드에서 같이 쓴다.
+#let vis-bake = box(width: 6cm, height: 3.2cm, {
+  let cx = 2.4cm
+  let cy = 1.65cm
+  let r = 1.45cm
+  place(top + left, dx: cx - r, dy: cy - r, circle(radius: r, stroke: 0.8pt + rule))
+  for i in range(70) {
+    let z = 1 - 2 * (i + 0.5) / 70
+    let rr = calc.sqrt(1 - z * z)
+    let phi = i * 2.39996
+    let front = rr * calc.sin(phi) > 0
+    dotc(
+      cx + r * rr * calc.cos(phi),
+      cy - r * z,
+      r: if front { 0.045cm } else { 0.03cm },
+      fill: if front { ink2 } else { c-base.lighten(30%) },
+    )
+  }
+  place(top + left, dx: cx - 0.42cm, dy: cy - 0.18cm, rect(width: 0.84cm, height: 0.45cm, fill: c-base, radius: 2pt))
+  place(top + left, dx: cx - 0.2cm, dy: cy - 0.4cm, rect(width: 0.4cm, height: 0.24cm, fill: c-base, radius: 2pt))
+  let hx = cx + r * calc.cos(35deg)
+  let hy = cy - r * calc.sin(35deg)
+  arrow(hx, hy, cx + 0.5cm * calc.cos(35deg), cy - 0.5cm * calc.sin(35deg), paint: c-blue, th: 1.4pt)
+  dotc(hx, hy, r: 0.1cm, fill: c-blue)
+  seg(hx + 0.12cm, hy, 4.5cm, hy, stroke: (paint: c-blue, thickness: 0.8pt, dash: "dotted"))
+  place(top + left, dx: 4.5cm, dy: hy - 0.38cm, rect(
+    width: 0.75cm,
+    height: 0.75cm,
+    fill: gradient.radial(ink.lighten(25%), white, radius: 60%),
+    stroke: 0.8pt + c-blue,
+  ))
+  lbl(4.3cm, hy + 0.5cm, [깊이 이미지], size: 9.5pt, fill: c-blue)
+})
+#let vis-test = box(width: 6cm, height: 3.2cm, {
+  let px = 1.7cm
+  let py = 2.8cm
+  let wx = 3.2cm
+  let wy = 0.8cm
+  place(top + left, dx: 0.1cm, dy: py, line(length: 5.6cm, stroke: 1pt + ink2))
+  place(top + left, dx: wx, dy: wy, rect(width: 0.6cm, height: py - wy, fill: c-base, radius: (
+    top-left: 2pt,
+    top-right: 2pt,
+  )))
+  for k in range(9) {
+    let th = 10deg + k * 20deg
+    let c = calc.cos(th)
+    let s = calc.sin(th)
+    let hit = c > 0 and (py - (wx - px) * s / c) >= wy
+    if hit {
+      let t = (wx - px) / c
+      seg(px, py, px + t * c, py - t * s, stroke: (paint: ink, thickness: 1.2pt, dash: "dotted"))
+      dotc(px + t * c, py - t * s, r: 0.07cm, fill: ink)
+    } else {
+      arrow(px, py, px + 1.6cm * c, py - 1.6cm * s, paint: c-blue, th: 1.2pt, head: 0.14cm)
     }
-    place(top + left, dx: cx - 0.42cm, dy: cy - 0.18cm, rect(width: 0.84cm, height: 0.45cm, fill: c-base, radius: 2pt))
-    place(top + left, dx: cx - 0.2cm, dy: cy - 0.4cm, rect(width: 0.4cm, height: 0.24cm, fill: c-base, radius: 2pt))
-    let hx = cx + r * calc.cos(35deg)
-    let hy = cy - r * calc.sin(35deg)
-    arrow(hx, hy, cx + 0.5cm * calc.cos(35deg), cy - 0.5cm * calc.sin(35deg), paint: c-blue, th: 1.4pt)
-    dotc(hx, hy, r: 0.1cm, fill: c-blue)
-    seg(hx + 0.12cm, hy, 4.5cm, hy, stroke: (paint: c-blue, thickness: 0.8pt, dash: "dotted"))
-    place(top + left, dx: 4.5cm, dy: hy - 0.38cm, rect(
-      width: 0.75cm,
-      height: 0.75cm,
+  }
+  dotc(px, py, r: 0.1cm, fill: c-orange)
+  lbl(px - 0.6cm, py + 0.08cm, [Gaussian], size: 9.5pt, fill: c-orange.darken(10%))
+  lbl(wx + 0.7cm, wy + 0.1cm, [가림막], size: 9.5pt)
+})
+#let vis-sh = box(width: 6cm, height: 3.2cm, {
+  let W = 2.2cm
+  let H = 1.1cm
+  let oy = 0.9cm
+  let xa = W * occ-a / (2 * calc.pi)
+  let xb = W * occ-b / (2 * calc.pi)
+  place(top + left, curve(
+    stroke: 1.8pt + ink,
+    curve.move((0pt, oy)),
+    curve.line((xa, oy)),
+    curve.line((xa, oy + H)),
+    curve.line((xb, oy + H)),
+    curve.line((xb, oy)),
+    curve.line((W, oy)),
+  ))
+  lbl(0cm, oy + H + 0.3cm, [방향별 가림\ (1,200개 값)], size: 9.5pt)
+  arrow(2.4cm, oy + H / 2, 3.0cm, oy + H / 2)
+  coeff-bars(occ-coeffs, 3.2cm, oy + H / 2, 0.75cm)
+  lbl(3.2cm, oy + H + 0.3cm, [숫자 16개 (SH)\ 만 저장], size: 9.5pt, fill: c-orange.darken(15%))
+})
+#let vis-relight = box(width: 6cm, height: 3.2cm, {
+  let oy = 0.8cm
+  place(top + left, dx: 0cm, dy: oy, rect(width: 1.5cm, height: 0.95cm, radius: 2pt, fill: gradient.linear(
+    rgb("#cfe3f7"),
+    rgb("#f4f1e8"),
+    angle: 90deg,
+  )))
+  place(top + left, dx: 0.9cm, dy: oy + 0.15cm, circle(radius: 0.14cm, fill: rgb("#f5b83d")))
+  lbl(0cm, oy + 1.2cm, [새 환경맵\ (SH 16개)], size: 9.5pt)
+  lbl(1.62cm, oy + 0.18cm, [×], size: 16pt)
+  coeff-bars(occ-coeffs.slice(0, 9), 2.1cm, oy + 0.48cm, 0.5cm, bw: 0.11cm, gap: 0.03cm)
+  lbl(2.1cm, oy + 1.2cm, [가림\ (SH 16개)], size: 9.5pt, fill: c-orange.darken(15%))
+  arrow(3.5cm, oy + 0.48cm, 4.15cm, oy + 0.48cm)
+  place(top + left, dx: 4.35cm, dy: oy - 0.12cm, circle(radius: 0.6cm, fill: gradient.radial(
+    white,
+    ink.lighten(45%),
+    center: (30%, 30%),
+    radius: 90%,
+  )))
+  lbl(4.35cm, oy + 1.2cm, [Gaussian의\ 새 밝기], size: 9.5pt)
+})
+
+#let mini(n, title, vis, body) = [
+  #text(size: 13pt, weight: "bold")[#text(fill: c-blue)[#n] #title]
+  #v(0.05em)
+  #box(width: 100%, height: 2.8cm, align(center, scale(85%, reflow: true, vis)))
+  #set text(size: 11pt, fill: ink2)
+  #set par(leading: 0.55em)
+  #body
+]
+#let stage-box(head, sub, color, body) = block(
+  width: 100%,
+  inset: (x: 0.6em, y: 0.6em),
+  radius: 8pt,
+  stroke: 1.2pt + color,
+  fill: color.lighten(95%),
+  [
+    #text(size: 15pt, weight: "bold", fill: color.darken(10%), head) #h(0.4em) #text(size: 11.5pt, fill: muted, sub)
+    #v(0.3em)
+    #body
+  ],
+)
+
+#slide(kicker: "배경 · 전체 흐름", title: "TranSplat의 그림자 구현 방식")[
+  #let arr = align(center, pad(top: 2.2cm, text(size: 16pt, fill: muted)[→]))
+  #v(0.2em)
+  #grid(
+    columns: (3.0fr, auto, 1.1fr),
+    column-gutter: 0.25cm,
+    stage-box([1단계 · bake], [조명과 무관. 물체마다 미리 한 번], c-blue)[
+      #block(
+        width: 100%,
+        inset: (x: 0.5em, y: 0.5em),
+        radius: 6pt,
+        stroke: (paint: c-blue.lighten(30%), thickness: 1pt, dash: "dashed"),
+      )[
+        #text(size: 12pt, weight: "semibold", fill: c-blue)[↻ 방향 1,200개마다 반복 — 방향 하나씩 ① → ② → ③ 하고 다음 방향으로]
+        #v(0.3em)
+        #grid(
+          columns: (1fr, auto, 1fr, auto, 1fr),
+          column-gutter: 0.15cm,
+          mini("①", "깊이 이미지 렌더", vis-bake)[그 방향 바깥의 카메라로 물체를 한 번 렌더],
+          arr,
+          mini("②", "Gaussian 가림 판정", vis-test)[깊이 이미지와 비교해 Gaussian마다 그 방향의 가림값(0\~1)],
+          arr,
+          mini("③", "SH에 누적", vis-sh)[가림값을 Gaussian마다 SH 16칸에 더해 둠],
+        )
+      ]
+      #v(0.15em)
+      #text(size: 12.5pt)[반복이 끝나면 → *Gaussian마다 SH 숫자 16개* = "모든 방향의 가림"을 요약해 저장]
+    ],
+    arr,
+    stage-box([2단계 · relight], [\ 조명 바꿀 때마다], c-orange)[
+      #v(0.35em)
+      #mini("④", "새 조명 적용", vis-relight)[새 환경맵(SH 16개)과 가림(SH 16개)을 곱해 그림자가 들어간 밝기 계산]
+    ],
+  )
+  #v(0.4em)
+  #note[렌더링은 ①에서만, 방향당 1번 (총 1,200번). Gaussian 하나하나의 위치에서 렌더하지 않음. 다음 장부터 ①\~④를 한 장씩 설명.]
+]
+
+// ---------------------------------------------------------------------------
+// 3. ① 깊이 이미지 렌더
+// ---------------------------------------------------------------------------
+#slide(kicker: "배경 · 1단계 bake (방향 1,200개 반복)", title: "① 방향마다 깊이 이미지 렌더")[
+  #flow-nav("①")
+  #let vis-cam = box(width: 13.4cm, height: 6.4cm, {
+    let r = 1.35cm
+    let x0 = 0.6cm
+    let cy = 3.1cm
+    let cx = x0 + 5 * r
+    let t = calc.tan(2 * calc.asin(1 / 5) * 1.2 / 2)
+    let hh(x) = (x - x0) * t
+    let xn = cx - 1.5 * r
+    let xf = cx + 1.5 * r
+    place(top + left, curve(
+      fill: c-blue.lighten(88%),
+      stroke: none,
+      curve.move((xn, cy - hh(xn))),
+      curve.line((xf, cy - hh(xf))),
+      curve.line((xf, cy + hh(xf))),
+      curve.line((xn, cy + hh(xn))),
+      curve.close(),
+    ))
+    seg(x0, cy, xf, cy - hh(xf), stroke: (paint: c-blue, thickness: 0.7pt, dash: "dashed"))
+    seg(x0, cy, xf, cy + hh(xf), stroke: (paint: c-blue, thickness: 0.7pt, dash: "dashed"))
+    seg(xn, cy - hh(xn), xn, cy + hh(xn), stroke: 1.2pt + c-blue)
+    seg(xf, cy - hh(xf), xf, cy + hh(xf), stroke: 1.2pt + c-blue)
+    place(top + left, dx: cx - r, dy: cy - r, circle(radius: r, stroke: (paint: ink2, thickness: 0.8pt, dash: "dotted")))
+    place(top + left, dx: cx - 0.55cm, dy: cy - 0.1cm, rect(width: 1.1cm, height: 0.55cm, fill: c-base, radius: 2pt))
+    place(top + left, dx: cx - 0.3cm, dy: cy - 0.4cm, rect(width: 0.55cm, height: 0.3cm, fill: c-base, radius: 2pt))
+    dotc(cx, cy, r: 0.05cm, fill: ink)
+    seg(cx, cy, cx + r * calc.cos(-50deg), cy + r * calc.sin(-50deg), stroke: 0.9pt + ink2)
+    lbl(cx + 0.55cm, cy - 0.9cm, [$r$], size: 12pt)
+    cam(x0, cy)
+    lbl(x0 - 0.3cm, cy + 0.35cm, [카메라], size: 10pt, fill: c-blue)
+    // 거리 5r
+    let yb = cy + hh(xf) + 0.35cm
+    seg(x0, yb, cx, yb, stroke: 0.7pt + ink2)
+    seg(x0, yb - 0.1cm, x0, yb + 0.1cm, stroke: 0.7pt + ink2)
+    seg(cx, yb - 0.1cm, cx, yb + 0.1cm, stroke: 0.7pt + ink2)
+    lbl((x0 + cx) / 2 - 0.5cm, yb + 0.08cm, [$5r$ (방향 $i$ 쪽)], size: 10.5pt)
+    // 기록 범위
+    let yt = cy - hh(xf) - 0.25cm
+    seg(xn, yt, xf, yt, stroke: 0.7pt + c-blue)
+    seg(xn, yt - 0.1cm, xn, yt + 0.1cm, stroke: 0.7pt + c-blue)
+    seg(xf, yt - 0.1cm, xf, yt + 0.1cm, stroke: 0.7pt + c-blue)
+    lbl(xn - 0.6cm, yt - 0.55cm, [깊이 기록 범위: 중심 $plus.minus 1.5r$], size: 10.5pt, fill: c-blue)
+    // 결과 이미지
+    arrow(xf + 0.2cm, cy, xf + 0.75cm, cy)
+    place(top + left, dx: xf + 0.85cm, dy: cy - 0.8cm, rect(
+      width: 1.6cm,
+      height: 1.6cm,
       fill: gradient.radial(ink.lighten(25%), white, radius: 60%),
       stroke: 0.8pt + c-blue,
     ))
-    lbl(4.3cm, hy + 0.5cm, [깊이 이미지], size: 9.5pt, fill: c-blue)
+    lbl(xf + 0.75cm, cy + 0.95cm, [깊이 이미지\ 1024×1024], size: 10pt, fill: c-blue)
   })
-  #let vis-test = box(width: 6cm, height: 3.2cm, {
-    let px = 1.7cm
-    let py = 2.8cm
-    let wx = 3.2cm
-    let wy = 0.8cm
-    place(top + left, dx: 0.1cm, dy: py, line(length: 5.6cm, stroke: 1pt + ink2))
-    place(top + left, dx: wx, dy: wy, rect(width: 0.6cm, height: py - wy, fill: c-base, radius: (
-      top-left: 2pt,
-      top-right: 2pt,
-    )))
-    for k in range(9) {
-      let th = 10deg + k * 20deg
-      let c = calc.cos(th)
-      let s = calc.sin(th)
-      let hit = c > 0 and (py - (wx - px) * s / c) >= wy
-      if hit {
-        let t = (wx - px) / c
-        seg(px, py, px + t * c, py - t * s, stroke: (paint: ink, thickness: 1.2pt, dash: "dotted"))
-        dotc(px + t * c, py - t * s, r: 0.07cm, fill: ink)
-      } else {
-        arrow(px, py, px + 1.6cm * c, py - 1.6cm * s, paint: c-blue, th: 1.2pt, head: 0.14cm)
+  #let vis-alpha = box(width: 13.4cm, height: 2.6cm, {
+    let y = 1.0cm
+    arrow(0.2cm, y, 9.6cm, y, paint: muted, th: 0.8pt)
+    lbl(0.1cm, y + 0.2cm, [픽셀 하나의 시선], size: 9.5pt, fill: muted)
+    for (x, w, a) in ((3.0cm, "0.6", 75%), (4.6cm, "0.3", 45%), (7.6cm, "0.1", 20%)) {
+      place(top + left, dx: x - 0.22cm, dy: y - 0.55cm, ellipse(width: 0.44cm, height: 1.1cm, fill: c-orange.lighten(100% - a)))
+      lbl(x - 0.35cm, y + 0.65cm, [$w = #w$], size: 9.5pt)
+    }
+    let d = 3.0 * 0.6 + 4.6 * 0.3 + 7.6 * 0.1
+    seg(d * 1cm, y - 0.7cm, d * 1cm, y + 0.4cm, stroke: 1.6pt + c-blue)
+    lbl(d * 1cm - 0.6cm, y - 1.05cm, [기록되는 깊이], size: 9.5pt, fill: c-blue)
+    lbl(10.0cm, y - 0.5cm, [$d = (sum_k w_k z_k) / (sum_k w_k)$], size: 12pt)
+  })
+  #grid(
+    columns: (1.1fr, 1fr),
+    column-gutter: 0.9cm,
+    [
+      #vis-cam
+      #v(0.2em)
+      #vis-alpha
+    ],
+    [
+      #set text(size: 13pt)
+      *카메라 놓기*
+      - 방향: 구 위에 고르게 퍼진 1,200개 중 $i$번째
+      - 위치: 물체 중심에서 그 방향으로 $5r$, 중심을 바라봄
+      - 화각: 반지름 $r$ 구가 꽉 차게 (1.2배 여유)
+      *깊이 이미지에 적히는 값*
+      - 픽셀마다 그 시선에 걸린 Gaussian들의 깊이를 *alpha로 가중평균* \
+        #note[$w_k$: Gaussian $k$의 불투명도 × 앞쪽에서 남은 투과율. 맨 앞 하나가 아니라 섞인 값.]
+      - 중심 $plus.minus 1.5r$ 밖은 기록 안 됨
+      #v(0.2em)
+      #callout(color: c-orange)[
+        #set text(size: 12pt)
+        $r$ = 1.8 × (중심에서 가장 먼 Gaussian까지 거리). \
+        lego는 잡티 때문에 $r = 13.9$ (물체만 보면 약 1.9). \
+        → 이미지 대부분이 빈 공간, ②의 판정도 무뎌짐 (결과 A).
+      ]
+    ],
+  )
+]
+
+// ①의 실제 예시 (depth-shell.typ)
+#depth-example
+
+// ---------------------------------------------------------------------------
+// 4. ② Gaussian 가림 판정
+// ---------------------------------------------------------------------------
+#slide(kicker: "배경 · 1단계 bake (방향 1,200개 반복)", title: "② 각 Gaussian의 가림 판정 (렌더 없이 계산만)")[
+  #flow-nav("②")
+  #let vis-depth = box(width: 13.4cm, height: 4.3cm, {
+    let y = 1.7cm
+    cam(0.5cm, y)
+    lbl(0.1cm, y + 0.35cm, [①의 카메라], size: 9.5pt, fill: c-blue)
+    place(top + left, dx: 4.6cm, dy: 0.3cm, rect(width: 0.7cm, height: 1.75cm, fill: c-base, radius: 2pt))
+    lbl(3.7cm, 0.0cm, [앞쪽 표면 (가림체)], size: 9.5pt)
+    place(top + left, dx: 10.0cm, dy: 0.5cm, rect(width: 0.35cm, height: 1.75cm, fill: c-base.lighten(40%), radius: 2pt))
+    seg(1.0cm, y, 4.6cm, y, stroke: (paint: c-blue, thickness: 1pt, dash: "dotted"))
+    seg(5.3cm, y, 9.85cm, y, stroke: (paint: muted, thickness: 1pt, dash: "dotted"))
+    dotc(9.85cm, y, r: 0.13cm, fill: c-orange)
+    lbl(9.2cm, 0.05cm, [Gaussian], size: 9.5pt, fill: c-orange.darken(10%))
+    let ya = 3.45cm
+    arrow(0.5cm, ya, 12.6cm, ya, paint: ink2, th: 0.8pt)
+    lbl(12.0cm, ya + 0.15cm, [깊이], size: 9.5pt, fill: muted)
+    seg(4.6cm, ya - 0.12cm, 4.6cm, ya + 0.12cm, stroke: 1.2pt + c-blue)
+    lbl(4.1cm, ya + 0.2cm, [$d$ (깊이 이미지 값)], size: 10pt, fill: c-blue)
+    seg(9.85cm, ya - 0.12cm, 9.85cm, ya + 0.12cm, stroke: 1.2pt + c-orange)
+    lbl(9.2cm, ya + 0.2cm, [$z$ (Gaussian 깊이)], size: 10pt, fill: c-orange.darken(10%))
+    place(top + left, dx: 4.6cm, dy: y + 0.35cm, rect(width: 0.6cm, height: 0.14cm, fill: muted))
+    lbl(4.45cm, y + 0.5cm, [bias], size: 9pt, fill: muted)
+    place(top + left, dx: 5.2cm, dy: y + 0.35cm, rect(width: 4.65cm, height: 0.14cm, fill: c-orange.lighten(30%)))
+    lbl(6.4cm, y + 0.5cm, [관통 깊이 $p$], size: 10pt, fill: c-orange.darken(10%))
+  })
+  #let vis-pcf = box(width: 13.4cm, height: 4.6cm, {
+    let px = 0.56cm
+    let ox = 0.3cm
+    let oy = 0.35cm
+    let n = 7
+    for i in range(n) {
+      for j in range(n) {
+        place(top + left, dx: ox + i * px, dy: oy + j * px, rect(
+          width: px,
+          height: px,
+          fill: if i <= 3 { c-base.lighten(35%) } else { white },
+          stroke: 0.4pt + rule,
+        ))
       }
     }
-    dotc(px, py, r: 0.1cm, fill: c-orange)
-    lbl(px - 0.6cm, py + 0.08cm, [Gaussian], size: 9.5pt, fill: c-orange.darken(10%))
-    lbl(wx + 0.7cm, wy + 0.1cm, [가림막], size: 9.5pt)
+    let cx = ox + 3.5 * px
+    let cy = oy + 3.5 * px
+    let offs = (
+      (-0.942, -0.399),
+      (0.946, -0.769),
+      (-0.094, -0.929),
+      (0.345, 0.294),
+      (-0.916, 0.458),
+      (-0.815, -0.879),
+      (-0.383, 0.277),
+      (0.975, 0.756),
+    )
+    for (u, v) in offs {
+      let sx = 3.5 + 1.5 * u
+      let hit = sx < 4.0
+      dotc(cx + 1.5 * u * px, cy + 1.5 * v * px, r: 0.1cm, fill: if hit { ink } else { c-blue })
+    }
+    cross(cx, cy, s: 0.1cm, stroke: 1.4pt + c-orange)
+    lbl(ox, oy + n * px + 0.1cm, [깊이 이미지 픽셀 (회색: 가림체가 찍힌 곳)], size: 9.5pt, fill: muted)
+    let tx = ox + n * px + 0.6cm
+    cross(tx + 0.12cm, 0.5cm, s: 0.09cm, stroke: 1.4pt + c-orange)
+    lbl(tx + 0.35cm, 0.3cm, [Gaussian 중심이 떨어진 위치], size: 10.5pt)
+    lbl(tx, 0.85cm, [#text(fill: ink)[●] 가림체 위 5곳: $e^(-0.58 times 0.47) = 0.76$], size: 10.5pt)
+    lbl(tx, 1.4cm, [#text(fill: c-blue)[●] 가림체 밖 3곳: 관통 0 → $1$], size: 10.5pt)
+    lbl(tx, 2.2cm, [평균 $= (5 times 0.76 + 3 times 1) / 8 = bold(0.85)$], size: 12pt)
+    lbl(tx, 2.95cm, [→ 이 방향에서 이 Gaussian의 가림값], size: 10.5pt, fill: ink2)
   })
-  #let vis-sh = box(width: 6cm, height: 3.2cm, {
-    let W = 2.2cm
-    let H = 1.1cm
-    let oy = 0.9cm
-    let xa = W * occ-a / (2 * calc.pi)
-    let xb = W * occ-b / (2 * calc.pi)
-    place(top + left, curve(
-      stroke: 1.8pt + ink,
-      curve.move((0pt, oy)),
-      curve.line((xa, oy)),
-      curve.line((xa, oy + H)),
-      curve.line((xb, oy + H)),
-      curve.line((xb, oy)),
-      curve.line((W, oy)),
-    ))
-    lbl(0cm, oy + H + 0.3cm, [방향별 가림\ (1,200개 값)], size: 9.5pt)
-    arrow(2.4cm, oy + H / 2, 3.0cm, oy + H / 2)
-    coeff-bars(occ-coeffs, 3.2cm, oy + H / 2, 0.75cm)
-    lbl(3.2cm, oy + H + 0.3cm, [숫자 16개 (SH)\ 만 저장], size: 9.5pt, fill: c-orange.darken(15%))
-  })
-  #let vis-relight = box(width: 6cm, height: 3.2cm, {
-    let oy = 0.8cm
-    place(top + left, dx: 0cm, dy: oy, rect(width: 1.5cm, height: 0.95cm, radius: 2pt, fill: gradient.linear(
-      rgb("#cfe3f7"),
-      rgb("#f4f1e8"),
-      angle: 90deg,
-    )))
-    place(top + left, dx: 0.9cm, dy: oy + 0.15cm, circle(radius: 0.14cm, fill: rgb("#f5b83d")))
-    lbl(0cm, oy + 1.2cm, [새 환경맵\ (SH 16개)], size: 9.5pt)
-    lbl(1.62cm, oy + 0.18cm, [×], size: 16pt)
-    coeff-bars(occ-coeffs.slice(0, 9), 2.1cm, oy + 0.48cm, 0.5cm, bw: 0.11cm, gap: 0.03cm)
-    lbl(2.1cm, oy + 1.2cm, [가림\ (SH 16개)], size: 9.5pt, fill: c-orange.darken(15%))
-    arrow(3.5cm, oy + 0.48cm, 4.15cm, oy + 0.48cm)
-    place(top + left, dx: 4.35cm, dy: oy - 0.12cm, circle(radius: 0.6cm, fill: gradient.radial(
-      white,
-      ink.lighten(45%),
-      center: (30%, 30%),
-      radius: 90%,
-    )))
-    lbl(4.35cm, oy + 1.2cm, [Gaussian의\ 새 밝기], size: 9.5pt)
-  })
-  #let step(n, phase, title, vis, body) = [
-    #text(size: 11pt, fill: muted)[#phase]\
-    #text(size: 14pt, weight: "bold")[#text(fill: c-blue)[#n] #title]
-    #v(0.1em)
-    #box(width: 100%, height: 3.2cm, align(center, vis))
-    #v(0.2em)
-    #set text(size: 11.5pt, fill: ink2)
-    #set par(leading: 0.6em)
-    #body
-  ]
-  #let arr = align(center, pad(top: 2.4cm, text(size: 18pt, fill: muted)[→]))
-  #v(0.4em)
   #grid(
-    columns: (1fr, auto, 1fr, auto, 1fr, auto, 1fr),
-    column-gutter: 0.25cm,
-    step("①", "bake", "방향별 그림자맵", vis-bake)[
-      물체를 둘러싼 1,200개의 방향에서 물체를 보는 카메라로 그림자맵 생성
+    columns: (1.1fr, 1fr),
+    column-gutter: 0.9cm,
+    [
+      #vis-depth
+      #vis-pcf
     ],
-    arr,
-    step("②", "bake", "각 Gaussian 가림 판정", vis-test)[
-      Gaussian이 그림자맵의 깊이보다 뒤에 있으면 그 방향은 가려짐(0), 아니면 보임(1)으로 점마다 방향 1,200개짜리 occlusion map 생성
+    [
+      #set text(size: 12.5pt)
+      Gaussian 97.5만 개를 *동시에* 계산 (행렬 곱 + 이미지 조회)
+      + 중심 좌표를 ①의 카메라 좌표로 변환 \
+        → 깊이 $z$, 깊이 이미지 위 위치
+      + 그 위치 주변 8곳(반경 1.5픽셀)에서 $d$를 읽음
+      + 곳마다 \
+        관통 깊이 $p = max(0, z - d - "bias")$ \
+        ESM $= e^(-alpha p)$ #note[1: 보임, 0에 가까울수록 가려짐]
+      + 8곳 ESM 값의 평균 (PCF) = *이 방향의 가림값*
+      #note[$alpha = 8 \/ r$ (lego 0.58), bias = 3 × Gaussian의 가장 긴 축. 예시는 가림체가 0.5 앞, bias 0.03.]
+      #v(0.1em)
+      #callout[
+        #set text(size: 11.5pt)
+        깊이를 평균내지 않고 *판정 결과를 평균* → 가림체 경계 ±1.5픽셀에서 0 → 1로 서서히 바뀜 (그림자 경계가 부드러워짐). 폭은 광원 크기와 무관하게 고정.
+      ]
     ],
-    arr,
-    step("③", "bake", "SH로 저장", vis-sh)[
-      occlusion map을 SH로 투영해 점마다 숫자 16개만 저장. *날카로운 경계는 이 단계에서 뭉개짐.*
+  )
+]
+
+// ---------------------------------------------------------------------------
+// 5. ③ SH 누적
+// ---------------------------------------------------------------------------
+#slide(kicker: "배경 · 1단계 bake (방향 1,200개 반복)", title: "③ 가림값을 SH 16칸에 누적")[
+  #flow-nav("③")
+  #let basis = range(16).map(k => calc.sin(k * 1.7 + 0.6) * (1 - k / 24))
+  #let acc = range(16).map(k => calc.cos(k * 0.9 + 0.3) * (1 - k / 20))
+  #let bars16(cs, color: c-orange) = box(width: 2.9cm, height: 1.3cm, coeff-bars(cs, 0cm, 0.65cm, 0.6cm, color: color))
+  #let cell(body) = align(center + horizon, body)
+  #let row-title(body) = text(size: 13pt, weight: "bold", body)
+  #grid(
+    columns: (1.15fr, 1fr),
+    column-gutter: 0.9cm,
+    [
+      #row-title[반복 $i$번째 · Gaussian 하나 기준]
+      #v(0.2em)
+      #grid(
+        columns: (auto, auto, auto, auto, auto),
+        column-gutter: 0.35cm,
+        row-gutter: 0.2cm,
+        cell(text(size: 20pt, weight: "bold", fill: c-orange)[0.85]),
+        cell(text(size: 16pt)[×]),
+        cell(bars16(basis, color: c-blue)),
+        cell(text(size: 16pt)[→ +=]),
+        cell(bars16(acc)),
+        cell(note[②의 가림값]), [], cell(note[방향 $i$의 SH 기저값 16개]), [], cell(note[누적 16칸 (덧셈)]),
+      )
+      #v(0.5em)
+      #row-title[1,200번 끝난 뒤 · 한 번]
+      #v(0.2em)
+      #grid(
+        columns: (auto, auto, auto, auto, auto),
+        column-gutter: 0.35cm,
+        row-gutter: 0.2cm,
+        cell(bars16(acc)),
+        cell(text(size: 16pt)[×]),
+        cell(box(width: 1.3cm, height: 1.3cm, stroke: 0.8pt + ink2, radius: 2pt, align(
+          center + horizon,
+          text(size: 10pt)[16×16],
+        ))),
+        cell(text(size: 16pt)[→]),
+        cell(bars16(occ-coeffs)),
+        cell(note[누적 16칸]), [], cell(note[보정 행렬]), [], cell(note[*SH 계수 16개 저장*]),
+      )
     ],
-    arr,
-    step("④", "relight", "새 조명 적용", vis-relight)[
-      새 환경맵도 SH 16개로 요약 \
-      → occlusion map 적용, 표면 방향으로 적분 \
-      → *그림자가 들어간 밝기*(diffuse).
+    [
+      #set text(size: 12.5pt)
+      - Gaussian마다 *16칸짜리 통 하나*에 계속 더함. 가림값은 더한 뒤 버림.
+      - 메모리: 97.5만 × 16칸 × 4바이트 ≈ *62 MB*. 반복해도 늘지 않음 \
+        #note[(1,200개 값을 다 모아 두면 ≈ 4.7 GB)]
+      - 보정 행렬은 방향 배치로만 정해짐 (방향이 구 위에 완전히 고르지 않은 것 보정). 모든 Gaussian 공통이라 마지막에 한 번 곱함.
+      - 결과: 1,200방향의 가림 패턴을 SH 기저 16개의 합으로 가장 비슷하게 맞춘 것 (최소제곱).
+      #v(0.2em)
+      #callout(color: c-orange)[
+        #set text(size: 12pt)
+        16개 숫자로는 "보임 ↔ 가려짐"이 급하게 바뀌는 경계를 못 담음 → *날카로운 그림자가 뭉개지는 곳* (뒤의 "문제" 장).
+      ]
+    ],
+  )
+]
+
+// ---------------------------------------------------------------------------
+// 6. ④ 새 조명 적용
+// ---------------------------------------------------------------------------
+#slide(kicker: "배경 · 2단계 relight (조명 바꿀 때마다)", title: "④ 새 조명 적용")[
+  #flow-nav("④")
+  #grid(
+    columns: (1fr, 1.15fr),
+    column-gutter: 0.9cm,
+    [
+      #v(0.4em)
+      #align(center, scale(140%, reflow: true, vis-relight))
+      #v(0.6em)
+      #callout(color: c-aqua)[
+        #set text(size: 12.5pt)
+        조명이 바뀌면 *여기만* 다시 계산. ①\~③의 SH 16개는 그대로 재사용 → 빠름.
+      ]
+      #v(0.2em)
+      #note[specular(반사, 나머지 SH 색)도 "가려진 새 조명"을 반사 방향에서 읽어 변환하므로 가림이 들어감. 다만 촬영 조명 쪽은 가림 없이 나눔.]
+    ],
+    [
+      #set text(size: 13pt)
+      + *환경맵 → SH 16개* \
+        새 조명(target)과 촬영 때 조명(source) 둘 다. \
+        #note[1,200방향에서 가장 가까운 픽셀 하나씩 읽어 요약.]
+      + *가려진 조명 = 조명 × 가림* \
+        Gaussian마다 조명 SH 16개와 ③의 가림 SH 16개를 곱함. \
+        #note[SH끼리 곱하는 공식(Gaunt 계수) 사용, 결과도 16개로 자름.]
+      + *밝기 $E$* \
+        가려진 조명을 Gaussian 표면 방향(normal) 쪽 반구에서 cosine으로 적분.
+      + *색 바꾸기* \
+        $c_"new" = c_"old" times E_"target" / E_"source"$ #note[(최대 3배)] \
+        #note[Gaussian 색에는 촬영 때 조명·그림자가 이미 들어 있음 → 원래 밝기로 나누고 새 밝기를 곱함.]
     ],
   )
 ]
@@ -404,7 +517,7 @@
         태양이나 스포트라이트처럼 *작고 강한 광원*의 그림자가 흐리고 옅어짐.
       ]
       #v(0.3em)
-      - ③에서 가림 지도를 숫자 16개로 줄이면, "가려짐 ↔ 보임"이 급하게 바뀌는 경계가 부드럽게 뭉개짐.
+      - ③에서 가림을 숫자 16개로 줄이면, "가려짐 ↔ 보임"이 급하게 바뀌는 경계가 부드럽게 뭉개짐.
       - 광원이 크면 넓은 범위를 평균하므로 티가 덜 남.
       - 광원이 작고 경계 근처에 있으면 오차가 커질 수 있음 \
         → 그림자가 흐려지거나 엉뚱한 곳이 어두워짐.
@@ -908,6 +1021,9 @@
     ],
   )
 ]
+
+// A 보충: lego의 검은 막 (depth-shell.typ)
+#black-shell
 
 // ---------------------------------------------------------------------------
 // 9. B: 오차 분해
