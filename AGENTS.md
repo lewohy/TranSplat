@@ -3,7 +3,7 @@
 이 저장소에서 작업하는 에이전트(Claude 세션 등)를 위한 인수인계 문서입니다.
 작업을 시작하기 전에 전체를 읽고, 작업이 끝날 때마다 아래 [문서 유지 규칙](#문서-유지-규칙)에 따라 갱신하세요.
 
-마지막 갱신: 2026-11-14
+마지막 갱신: 2026-11-15
 
 ---
 
@@ -103,10 +103,16 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
 - 합성 환경맵(균일 ambient + 원판) 기준이다. 실제 HDR에서는 광원 분리 후 남는 부분이 균일하지 않아 hybrid의 ambient 오차가 커질 수 있다. 저장소에 실제 HDR은 없다.
 
 ### 3.5 발표 자료 (2026-11-02)
-- `report/experiment-001/report.typ`: 연구미팅용 슬라이드 21장 (TranSplat 그림자 구현 개요 → 1단계 bake ① 깊이 이미지 렌더 (+ 개념 3D 그림·실제 lego 깊이 이미지 2장) / ② 가림 판정(ESM+PCF) / ③ SH 누적 → 2단계 relight ④ → 문제 → 질문 A/B/C → 실험 조건·지표 → A 정답 계산 문제 5개와 수정 결과 → 검은 막 2장 → B → C·메모리 환산 → 결과 분석 → 광원 분리 → 결론·한계). ①~③은 코드에서 방향 1,200개마다 한 번에 도는 루프라 1단계로 묶고, 위치 표시는 `flow-nav`. 실험 조건 슬라이드 오른쪽은 lego 사진(`r_10.png`). 답 강조는 `verdict` 컴포넌트.
-  - 파일 구성: 색·컴포넌트·그림 도우미는 `theme.typ`, set 규칙(페이지·글꼴)은 `report.typ`에만 둔다. `depth-shell.typ`은 단독 컴파일용이 아니라 `depth-example`, `black-shell` 슬라이드 묶음을 내보내고 `report.typ`가 import해서 배치한다. 컴파일은 `report.typ` 하나.
-  - 정답 계산 문제 중 1(장면 크기), 2(normal 부호), 5(잡티)는 `radiance_transfer_TranSplat.py`에도 그대로 있다.
-  - 메모리는 실험에서 직접 재지 않았고 계수 수로 환산했다 (fp32, Haar 위치 4바이트 가정. lego 97.5만 개 기준 SH256 ≈ Haar128 ≈ 1.0 GB).
+- `report/experiment-001/report.typ`: 연구미팅용 슬라이드 21장, **2026-11-15부터 수치·그림은 다시 학습한 `lego_rgba` 기준 (3.7)** (TranSplat 그림자 구현 개요 → 1단계 bake ① 깊이 이미지 렌더 (+ 개념 3D 그림·실제 lego 깊이 이미지 2장) / ② 가림 판정(ESM+PCF) / ③ SH 누적 → 2단계 relight ④ → 문제 (한 Gaussian의 방향별 가림을 구 껍질 3D 그림과 그 단면 그래프로, 둘 다 실제 SH16 복원값) → 질문 A/B/C → 실험 조건(광원 크기 = 점에서 본 각지름 그림) → 정답 계산(하늘 2.5만 방향 + 원판 64방향, 보이는 개수로 L/P/그림자) → 하늘 부분 밝기와 AO 식 → 지표 → A 정답 계산 문제 4개 → 수정 결과(AO, 정답 신뢰도) → B → C·메모리 환산 → 결과 분석 → 광원 분리 → 결론·한계). ①~③은 코드에서 방향 1,200개마다 한 번에 도는 루프라 1단계로 묶고, 위치 표시는 `flow-nav`. 실험 조건 슬라이드는 표 아래에 lego 사진(`r_10.png`), 오른쪽에 광원 크기 그림. 답 강조는 `verdict` 컴포넌트.
+  - 파일 구성: 색·컴포넌트·그림 도우미는 `theme.typ`, set 규칙(페이지·글꼴)은 `report.typ`에만 둔다. `depth-shell.typ`(`depth-example`)과 `light-vis.typ`(`disc-angle`, `sampling-slide`, `sky-slide`), `sphere-vis.typ`(`shell`, `cut-graph`, 데이터는 `fig/make_sphere_vis.py` → `fig/sphere_vis.json`, 합성 가림막과 그 SH16 복원)은 단독 컴파일용이 아니라 슬라이드 묶음을 내보내고 `report.typ`가 import해서 배치한다. 컴파일은 `report.typ` 하나.
+  - 잡티 가림 지도 (2026-11-15, 처음 모델 기준, 지금 슬라이드에는 안 씀): `fig/make_floater_figs.py`(GPU 약 4분, 렌더 결과는 `fig/floater_vis.npz`에 저장해 `--redraw`로 그림만 다시 그림). v2에서 고도 10° 광원이 가려졌다가 v3에서 보이는 점(공통 평가점 5,200개 중 2,767개) 중 하나(#776526)의 방향별 가림을 cube 32, 6면 펼침으로 잡티 포함/제외 렌더. n / −n / 광원 / 장면 위쪽 표시, 위쪽이 그림 위로 오게 상하 반전.
+    - 잡티 때문에만 가려진 방향은 n 쪽 반구의 34%, 장면 위쪽 기준 고도 −21°~+17°(10~90% 분위)로 **수평선 근처 띠**다. 이전에 슬라이드에 쓴 "격자와 딱 맞는 정사각형", "하늘 위쪽 통째로"는 둘 다 틀려서 고침. 이 점 AO 0.38 → 0.83.
+    - 이 점의 원래 2DGS normal(회전 z축)은 카메라 투표 normal과 정반대 (2번 문제의 실제 예).
+    - lego의 장면 위쪽은 SH 좌표 (−0.03, −0.84, −0.54)로 cube 축과 맞지 않는다.
+    - v2의 "Haar 2.9배"는 C 표(V/LV 압축, 10°, K=256, 정답 대비 오차: SH 0.076 vs Haar 0.027). v2에서 10° 광원 dir2는 반그림자 점이 0개라 10° 평균은 dir0, dir1만으로 계산됨. v3 같은 칸은 같은 K 1.61, 같은 메모리 1.02 (v3는 압축 안 한 cube 대비 오차라 잣대가 약간 다름).
+    - 같은 스크립트가 광원 시점 컬러 렌더(`floater_view_*.png`, 잡티 포함이면 화면 전체가 검게 덮임)도 만들지만 슬라이드에는 안 넣음.
+  - 정답 계산 문제 중 1(장면 크기), 2(normal 부호)는 `radiance_transfer_TranSplat.py`에도 그대로 있다. 잡티는 처음 모델의 데이터 준비 문제라 슬라이드에서 뺌 (3.7).
+  - 메모리는 실험에서 직접 재지 않았고 계수 수로 환산했다 (fp32, Haar 위치 4바이트 가정. lego_rgba 85만 개 기준 SH256 ≈ Haar128 ≈ 0.87 GB).
 - `report/experiment-001/demo.html`: 한 점의 가림 지도를 SH / Haar로 압축해 비교하는 브라우저 데모 (실험과 같은 cube 64, top-k Haar, l≤15 SH).
 - 데모로 확인한 경향 (합성 장면, 추세만 참고): 표면 기울기 0°(가림 경계가 cube 격자와 나란함)에서는 Haar가 같은 개수 기준 2~2.7배 낫고, 25° 이상 기울면 0.6~1.4배로 이점이 사라진다. 같은 메모리 기준은 대부분 1 이하. 3.4의 "곡선 경계에서 Haar 비효율" 해석과 맞는다.
 
@@ -119,6 +125,19 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
   - 실제 phase 1 그대로인 `pipe1200`만 0.46/0.54/0.35/0.26 → 0.38/0.59/0.36/0.28로 ±0.08 흔들림.
   - `shadow_hybrid_check.py`도 `drop_dark`를 읽지만 v4로는 아직 안 돌림 (원판 그림자 판정 변화가 작아 결론 영향은 없을 것으로 봄).
 - 현재 phase 1은 expected depth + `depth > 0`이면 유효라서, 옅은 Gaussian만 걸린 픽셀도 가림체가 된다 (고친 반지름 기준 한 방향 깊이 이미지에서 깊이가 찍힌 픽셀의 24%가 alpha < 0.5). 쉬운 수정에 "alpha 0.5 미만 픽셀 무시(또는 median depth)"를 추가 검토.
+
+### 3.7 lego를 원본 RGBA로 다시 학습 (2026-11-15)
+- 기존 `sample/outputs/lego`는 COLMAP으로 다시 만든 `sample/colmaps/lego/dense/0`(왜곡 보정 과정에서 alpha가 빠진 798px RGB, 배경 검정)로 학습되어 alpha 마스크 loss가 안 걸렸다. 저자 권장 경로(README: RGBA synthetic → alpha 마스크, `--lambda_alpha 0.05`)가 아니었음. 검은 막과 잡티는 이 데이터 준비 때문.
+- 원본: NeRF 공식 예제 데이터(`https://cseweb.ucsd.edu/~viscomp/projects/LF/papers/ECCV20/nerf/nerf_example_data.zip`, bmild/nerf의 `download_example_data.sh`)의 lego → `sample/nerf_synthetic/lego`. train 100장이 기존 `sample/colmaps/lego/images`와 픽셀 단위로 동일.
+- 학습: `train.py -s sample/nerf_synthetic/lego -m sample/outputs/lego_rgba --white_background --eval` (나머지 기본값, 약 15분, test PSNR 35.7). `cameras.json`은 test 200 + train 100이라 study용으로 train만 뽑은 `cameras_train.json`을 씀.
+- 모델 비교 (신뢰): 물체 밖 잡티 1,907 → 0, phase 1 장면 반지름 13.8 → 2.53 (robust 1.57), r_10 흰 배경 렌더의 alpha>0.5 비율 100% → 26.4% (사진 물체 26.3%) → 검은 막 없음. normal 부호 뒤집힘은 여전히 49% (2DGS 고유).
+- study: `sample/outputs/lego_rgba/point_cloud/iteration_30000/shadow_frequency_study/results.md` (v3 설정과 같되 평가점 20,000 = 현재 기본값, 다른 점 집합). penumbra nMAE 2/5/10/30°:
+  - A: AO 중앙값 0.672, res2x 0.081/0.053/0.036/0.019.
+  - B: `pipe1200` 0.387/0.331/0.240/0.203 (v4 0.38/0.59/0.36/0.28), `pipe1200_exactL` 0.276/0.263/0.250/0.208, `pipefix1200_hard` 0.208/0.204/0.197/0.160, `sh3_LV` 0.184/0.177/0.162/0.105, `sh9_LV` 0.154/0.141/0.108/0.027. 쉬운 수정 효과는 1.9/1.6/1.2/1.3배로 줄었다 (잡티·장면 크기 문제가 원래 없으므로). 남은 큰 수정은 조명 SH 정확 투영(작은 광원)과 hard 판정. share_hard 0.88/0.87/0.82/0.66 → B1·B2 성립 유지.
+  - C (V, 같은 메모리 haar128 vs sh256): 1.03/1.16/1.16/0.63, 같은 K=256: 1.33/1.70/1.86/0.91. 임계 2배를 넘는 조건 없음 → **3.4의 C 결론 유지.**
+- hybrid (`shadow_hybrid_check.py`, 같은 폴더 `hybrid_check.md`): 1024px×16 0.128/0.088/0.065/0.044, 2048px×16 0.042/0.036/0.034/0.032, 샘플 1개 0.21~0.26. 처음 모델과 거의 같음.
+- 깊이 이미지 예시(`make_depth_figs.py`)도 새 모델로 다시 렌더: 물체 밖 기록 없음, alpha<0.5 픽셀 0.3% (처음 모델 24%) → 3.6의 "alpha 0.5 미만 픽셀 무시" 검토는 이 모델에서는 불필요.
+- 발표 자료 반영 (2026-11-15, 사용자 결정): 전체를 새 모델 수치로 교체. 1번(장면 크기)은 2.53 vs 1.57로 영향이 작아진 문제로, 잡티·검은 막·처음 학습 사진 이야기는 실험 세팅 실수라 슬라이드에서 모두 뺌 (사용자 결정, 정답 계산 문제는 4개). 정답 신뢰도 표에 띄우는 거리 1.5배(normal_wide) 차이 0.18/0.13/0.09/0.05를 새로 넣음 (2° 결과는 추세만).
 
 ## 4. 다음 할 일
 
@@ -161,6 +180,7 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
 - typst `@preview` 패키지(cetz 0.4.2 등)는 첫 컴파일 때 인터넷에서 받아 캐시한다 (2026-11-14 컨테이너에서 동작 확인).
 - 컨테이너에 브라우저/node가 없다. HTML 확인은 scratch에 playwright Chromium을 받고, 부족한 공유 라이브러리를 `apt-get download`(사용자 경로 apt lists)로 받아 `LD_LIBRARY_PATH`로 지정해 headless 실행했다.
 - 이 컨테이너 안에서 `nix build`는 권한 오류로 안 된다 (2026-10-28 기준. flake 변경은 컨테이너 재빌드로 반영).
+- 컨테이너에서 `nvidia-smi`가 "Failed to initialize NVML: Unknown Error"를 내고 torch가 CUDA를 못 찾으면 컨테이너 재시작으로 해결됨 (2026-11-15, `/dev/nvidia*`는 남아 있었음).
 - `git`은 소유자 불일치로 `git -c safe.directory='*' ...` 형태로 실행해야 한다.
 
 ## 8. 커밋 규칙
