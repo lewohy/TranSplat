@@ -1,0 +1,19 @@
+{
+  "point": 776526,
+  "n_flip_points": 2767,
+  "light": "dir2_10deg",
+  "cube": 32,
+  "shadow_res": 2048,
+  "visible_upper_with": 0.3733724057674408,
+  "ao_with": 0.3833572686353979,
+  "visible_upper_without": 0.7180989384651184,
+  "ao_without": 0.834501205034532,
+  "floater_only_frac_upper": 0.3447265625,
+  "floater_only_elev_q10_50_90": [
+    -21.4,
+    -4.0,
+    17.1
+  ],
+  "normal_dot_up": 0.23690854012966156,
+  "raw_normal_dot_voted": -1.0
+}

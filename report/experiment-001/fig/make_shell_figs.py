@@ -1,7 +1,8 @@
 """설명 문서용: 학습 카메라 한 대 시점에서 검은 배경 / 흰 배경 렌더 (검은 막이 배경색 때문에 안 보였던 것 확인).
 
 실행: .venv/bin/python report/experiment-001/fig/make_shell_figs.py
-출력: train_view_{black,white}.png, train_alpha.png, train_photo.png, shell_{top,side}.png
+출력: train_view_{black,white}.png, train_alpha.png, train_photo.png, shell_{top,side}.png,
+      train_view_white_rgba.png (원본 RGBA로 다시 학습한 모델, 같은 시점)
 """
 import json
 import sys
@@ -22,6 +23,7 @@ from gaussian_renderer import render  # noqa: E402
 
 OUT = Path(__file__).resolve().parent
 PLY = REPO / "sample/outputs/lego/point_cloud/iteration_30000/point_cloud.ply"
+PLY_RGBA = REPO / "sample/outputs/lego_rgba/point_cloud/iteration_30000/point_cloud.ply"
 VIEW = 10  # r_10 (5번 슬라이드 사진과 같은 시점)
 
 
@@ -37,8 +39,17 @@ def main():
         img = (pkg["render"].clamp(0, 1).permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
         cv2.imwrite(str(OUT / f"train_view_{name}.png"), cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
     a = pkg["rend_alpha"][0].clamp(0, 1).cpu().numpy()
+    # 다시 학습한 모델의 같은 시점 (학습 카메라는 train만 뽑은 cameras_train.json)
+    cams_rgba = sfs.load_cameras(PLY_RGBA.parents[2] / "cameras_train.json", "cuda")
+    names_rgba = [c["img_name"] for c in json.loads((PLY_RGBA.parents[2] / "cameras_train.json").read_text())]
+    with torch.no_grad():
+        pkg_rgba = render(cams_rgba[names_rgba.index(f"r_{VIEW}")]["cam"], rt.MockGaussianModel(rt.load_ply(str(PLY_RGBA))),
+                          rt.MockPipeline(), torch.ones(3, device="cuda"))
+    img = (pkg_rgba["render"].clamp(0, 1).permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
+    cv2.imwrite(str(OUT / "train_view_white_rgba.png"), cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
     cv2.imwrite(str(OUT / "train_alpha.png"), ((1 - a) * 255).astype(np.uint8))
-    stats = dict(train_alpha_gt05=float((a > 0.5).mean()))
+    stats = dict(train_alpha_gt05=float((a > 0.5).mean()),
+                 rgba_alpha_gt05=float((pkg_rgba["rend_alpha"][0] > 0.5).float().mean()))
 
     # 위에서 / 옆에서 본 흰 배경 렌더 (robust radius, 그 밖 잡티 제외)
     xyz = g["xyz"].detach()

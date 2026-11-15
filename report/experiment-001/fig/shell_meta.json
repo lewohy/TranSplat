@@ -1,3 +1,4 @@
 {
-  "train_alpha_gt05": 1.0
+  "train_alpha_gt05": 1.0,
+  "rgba_alpha_gt05": 0.2639906108379364
 }
