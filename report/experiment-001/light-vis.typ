@@ -1,4 +1,4 @@
-// 실험 조명 설명 그림: 광원 크기(각지름)와 정답 계산의 방향 샘플(하늘 / 원판 64개). report.typ가 import해서 쓴다.
+// 실험 조명 설명 그림: 광원 크기(각지름), 정답 계산의 방향 샘플(하늘 / 원판 64개), 하늘 부분 밝기와 AO. report.typ가 import해서 쓴다.
 #import "@preview/cetz:0.4.2"
 #import "theme.typ": *
 
@@ -81,7 +81,7 @@
       )
       #v(0.3em)
       $ E_"광원" = "광원 세기" times "원판 넓이" times 1/64 sum_(k=1)^64 "보임"_k times cos theta_k $
-      #note[$theta_k$: 표면 방향(normal)과 $k$번째 방향 사이의 각. 하늘 부분도 같은 방식으로 2.5만 방향을 더함. $E$ = 하늘 + 광원.]
+      #note[$theta_k$: 표면 방향(normal)과 $k$번째 방향 사이의 각. 하늘 부분도 같은 방식으로 2.5만 방향을 더함 (다음 장). $E$ = 하늘 + 광원.]
       #note[64방향은 원판 넓이를 64등분하도록 나선형으로 배치. 가림 판정은 ②와 달리 흐리게(ESM+PCF) 하지 않은 0/1.]
     ],
     [
@@ -109,3 +109,70 @@
 ]
 ]
 
+// 하늘 부분 밝기와 AO: 점 위 반구의 방향마다 보임 × cos를 더함 (단면 개념도)
+#let ao-fan = cetz.canvas(length: 1cm, {
+  import cetz.draw: *
+  let R = 3.0
+  let ox = 1.2 // 가림막 왼쪽 면
+  let oh = 2.0
+  arc((0, 0), start: 0deg, stop: 180deg, radius: R, anchor: "origin", stroke: (paint: rule, thickness: 0.8pt, dash: "dashed"))
+  for i in range(17) {
+    let t = -80deg + i * 10deg // normal(위)에서 잰 각, 오른쪽이 +
+    let d = (calc.sin(t), calc.cos(t))
+    if t > 0deg and calc.tan(t) > ox / oh {
+      // 가림막에 부딪힘
+      line((0, 0), (ox, ox / calc.tan(t)), stroke: (paint: c-base.darken(10%), thickness: 0.9pt, dash: "dotted"))
+    } else {
+      line((0, 0), (d.at(0) * R, d.at(1) * R), stroke: (0.4pt + 3.2pt * calc.cos(t)) + c-blue)
+    }
+  }
+  rect((ox, 0), (ox + 0.35, oh), fill: c-base, stroke: none, radius: 2pt)
+  content((ox + 0.5, oh - 0.3), anchor: "west", text(size: 10pt, fill: muted)[가림막])
+  // normal
+  line((0, 0), (0, R + 0.4), stroke: (paint: ink2, thickness: 0.8pt, dash: "dashed"), mark: (end: ">", fill: ink2))
+  content((0.15, R + 0.55), anchor: "west", text(size: 10.5pt, fill: ink2)[normal $n$ ($theta = 0$)])
+  rect((-3.4, -0.3), (3.4, 0), fill: c-plate, stroke: 0.4pt + c-plate.darken(30%))
+  circle((0, 0), radius: 0.12, fill: c-lego, stroke: 0.6pt + c-lego.darken(30%))
+  content((0, -0.65), text(size: 10pt, fill: ink2)[평가하는 점 (Gaussian)])
+})
+
+#let sky-slide = [
+#slide(kicker: "방법 · 정답 계산", title: "하늘 부분 밝기와 AO (가려지지 않은 정도)")[
+  #grid(
+    columns: (1.15fr, 1fr),
+    column-gutter: 1cm,
+    [
+      #set text(size: 13pt)
+      하늘 2.5만 방향(cube map 칸)을 모두 더함:
+      $ E_"하늘" = 0.2 times sum_(j=1)^(24576) w_j times "보임"_j times max(cos theta_j, 0) $
+      #v(-0.2em)
+      #set text(size: 12pt)
+      - $0.2$: 하늘 밝기 (모든 방향 같음)
+      - $w_j$: 칸 $j$가 하늘에서 차지하는 넓이. cube map 칸은 면 가운데가 모서리보다 약 5배 넓어서 보정. 다 더하면 $4 pi$ (구 전체)
+      - $max(cos theta_j, 0)$: 정면에서 오는 빛은 크게, 비스듬하면 작게, 표면 뒤쪽은 0
+      #v(0.3em)
+      #callout[
+        #set text(size: 12.5pt)
+        하나도 안 가려지면 $sum w_j max(cos theta_j, 0) = pi$. 이것으로 나눈 값이 *AO*:
+        $ "AO" = 1/pi sum_j w_j times "보임"_j times max(cos theta_j, 0) quad -> quad E_"하늘" = 0.2 times pi times "AO" $
+        #v(-0.3em)
+        0 = 완전히 가려짐, 1 = 하늘이 다 보임. *Gaussian마다 하나*씩 계산.
+      ]
+    ],
+    [
+      #align(center, ao-fan)
+      #v(0.2em)
+      #set text(size: 12pt)
+      #grid(
+        columns: (auto, 1fr),
+        column-gutter: 0.5em,
+        row-gutter: 0.4em,
+        text(fill: c-blue)[*━*], [보이는 방향. 굵기 = $cos theta$ (정면일수록 크게 침)],
+        text(fill: c-base.darken(10%))[*┅*], [가려진 방향 → 더하지 않음],
+      )
+      #v(0.2em)
+      #note[AO = 보이는 방향의 $cos theta$ 합 ÷ 전부 보일 때의 합 (그림은 단면 개념도, 실제는 반구 전체). 조명과 무관하고 점 주변의 모양만으로 정해짐. 판정은 정답과 같은 0/1.]
+    ],
+  )
+]
+]

@@ -5,7 +5,7 @@
 #import "theme.typ": *
 #import "depth-shell.typ": depth-example
 #import "sphere-vis.typ": shell, cut-graph
-#import "light-vis.typ": disc-angle, sampling-slide
+#import "light-vis.typ": disc-angle, sampling-slide, sky-slide
 
 #set page(
   paper: "presentation-16-9",
@@ -631,6 +631,7 @@
 
 // 정답 계산의 방향 샘플 (light-vis.typ)
 #sampling-slide
+#sky-slide
 
 // ---------------------------------------------------------------------------
 // 6. 실험 설계: 지표와 비교 대상
@@ -881,34 +882,14 @@
     columns: (1fr, 1.05fr),
     column-gutter: 1cm,
     [
-      *점이 하늘을 얼마나 보나 (AO)*
+      *점이 하늘을 얼마나 보나 (AO, 앞 장)*
       #v(0.1em)
-      #box(width: 100%, height: 2.3cm, {
-        let px = 2.2cm
-        let py = 2.0cm
-        let r = 1.5cm
-        place(top + left, dx: 0.2cm, dy: py, line(length: 4.4cm, stroke: 1pt + ink2))
-        for i in range(36) {
-          let t0 = i * 5deg
-          let t1 = (i + 1) * 5deg
-          let blocked = t1 <= 55deg
-          seg(
-            px + r * calc.cos(t0),
-            py - r * calc.sin(t0),
-            px + r * calc.cos(t1),
-            py - r * calc.sin(t1),
-            stroke: (if blocked { 3pt } else { 2.4pt }) + (if blocked { ink } else { c-blue }),
-          )
-        }
-        place(top + left, dx: 3.85cm, dy: 0.6cm, rect(width: 0.45cm, height: py - 0.6cm, fill: c-base, radius: (
-          top-left: 2pt,
-          top-right: 2pt,
-        )))
-        dotc(px, py, r: 0.1cm, fill: c-orange)
-        lbl(4.9cm, 0.45cm, [하늘 중 #text(fill: c-blue, weight: "bold")[보이는 비율] (0\~1)], size: 11pt)
-        lbl(4.9cm, 1.0cm, [정상적인 바깥 표면이면 0.3보다 훨씬 큼], size: 11pt, fill: muted)
-        lbl(4.9cm, 1.45cm, [고치기 전: 27%의 점이 "거의 다 가려짐"(0.05 미만)], size: 11pt, fill: c-orange.darken(10%))
-      })
+      #[
+        #set text(size: 12pt)
+        - 0 = 완전히 가려짐, 1 = 하늘이 다 보임
+        - 정상적인 바깥 표면이면 0.3보다 훨씬 큼
+        - #text(fill: c-orange.darken(10%))[고치기 전: 27%의 점이 "거의 다 가려짐"(0.05 미만)]
+      ]
       #v(0.2em)
       #bars(
         ("고치기 전", "+ 2번 수정", "+ 4번 수정"),
