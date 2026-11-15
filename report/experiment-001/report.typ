@@ -1,8 +1,11 @@
 // 연구미팅: wavelet 적용 전 실험 (고주파 그림자 개선 방향 검토)
 // 컴파일: typst compile report.typ  (devcontainer는 TYPST_FONT_PATHS로 Pretendard를 찾는다. 로컬은 아래 목록 순서로 대체)
 
+#import "@preview/cetz:0.4.2"
 #import "theme.typ": *
 #import "depth-shell.typ": depth-example, black-shell
+#import "sphere-vis.typ": shell, cut-graph
+#import "light-vis.typ": disc-angle, sampling-slide
 
 #set page(
   paper: "presentation-16-9",
@@ -509,63 +512,36 @@
 // ---------------------------------------------------------------------------
 #slide(kicker: "배경", title: "문제: 작고 강한 광원의 그림자가 흐려짐")[
   #grid(
-    columns: (1fr, 1.15fr),
-    column-gutter: 1.2cm,
+    columns: (1fr, 1.1fr),
+    column-gutter: 1.0cm,
     [
-      #v(0.6em)
       #callout(color: c-orange)[
         태양이나 스포트라이트처럼 *작고 강한 광원*의 그림자가 흐리고 옅어짐.
       ]
-      #v(0.3em)
-      - ③에서 가림을 숫자 16개로 줄이면, "가려짐 ↔ 보임"이 급하게 바뀌는 경계가 부드럽게 뭉개짐.
-      - 광원이 크면 넓은 범위를 평균하므로 티가 덜 남.
-      - 광원이 작고 경계 근처에 있으면 오차가 커질 수 있음 \
-        → 그림자가 흐려지거나 엉뚱한 곳이 어두워짐.
-      #v(0.4em)
+      #v(0.1em)
+      #grid(
+        columns: (1fr, 1fr),
+        column-gutter: 0.3cm,
+        align(center, shell("judge", [② 판정값 (ESM+PCF)], len: 1.55cm)),
+        align(center, shell("sh16", text(fill: c-orange.darken(10%))[③ SH 16개로 복원], len: 1.55cm)),
+      )
+      #v(0.2em)
+      #set text(size: 12.5pt)
+      - 구 중심 = Gaussian 하나, 구 표면의 점 = 빛이 들어올 수 있는 쪽. 1/8만 껍질로 그림: *안으로 들어가고 어두울수록 가려짐*.
+      - SH 16개는 구불구불한 가림 경계를 담지 못해 *넓고 옅은 얼룩*으로 퍼뜨림.
+      #note[합성 예시: 지름 약 40°의 가림막, 경계 폭 3°. SH는 구 전체로 계산.]
     ],
     [
-      #let W = 14cm
-      #let H = 4.4cm
-      #let a = occ-a
-      #let b = occ-b
-      #let N = 3
-      #let f(x) = {
-        let s = 1 - (b - a) / (2 * calc.pi)
-        for k in range(1, N + 1) {
-          s += -(calc.sin(k * b) - calc.sin(k * a)) / (k * calc.pi) * calc.cos(k * x)
-          s += (calc.cos(k * b) - calc.cos(k * a)) / (k * calc.pi) * calc.sin(k * x)
-        }
-        s
-      }
-      #let px(x) = W * x / (2 * calc.pi)
-      #let py(v) = H * (1.15 - v) / 1.4
-      #let pts = range(0, 201).map(i => 2 * calc.pi * i / 200)
-      #text(size: 13pt, fill: ink2)[한 점에서 본 방향별 가림 (1 = 하늘이 보임, 0 = 가려짐)]
+      #text(size: 13pt, fill: ink2)[#text(fill: c-blue)[*파란 선*]을 따라 읽은 값 (1 = 빛이 들어옴, 0 = 가려짐)]
+      #v(0.5em)
+      #pad(left: 0.5cm, cut-graph(13.4cm, 4.4cm))
+      #legend((
+        (name: "② 판정값 (점 = 방향마다 계산한 값)", color: ink),
+        (name: "③ SH 16개로 복원", color: c-orange),
+      ))
       #v(0.3em)
-      #box(width: W, height: H + 0.9cm, {
-        place(top + left, dy: py(0), line(length: W, stroke: 0.6pt + rule))
-        place(top + left, dy: py(1), line(length: W, stroke: 0.6pt + rule))
-        place(top + left, curve(
-          stroke: 2.5pt + ink,
-          curve.move((0pt, py(1))),
-          curve.line((px(a), py(1))),
-          curve.line((px(a), py(0))),
-          curve.line((px(b), py(0))),
-          curve.line((px(b), py(1))),
-          curve.line((W, py(1))),
-        ))
-        place(top + left, curve(
-          stroke: 2pt + c-orange,
-          curve.move((0pt, py(f(0)))),
-          ..pts.slice(1).map(x => curve.line((px(x), py(f(x))))),
-        ))
-        place(top + left, dx: px(a) + 0.15cm, dy: py(0) + 0.15cm, text(size: 11pt, fill: ink2)[가림막 방향])
-        // 경계 근처의 작은 광원
-        place(top + left, dx: px(b) - 0.45cm, dy: py(1) - 0.75cm, circle(radius: 0.17cm, fill: rgb("#f5b83d")))
-        place(top + left, dx: px(b) + 0.05cm, dy: py(1) - 0.8cm, text(size: 11pt, fill: ink2)[작은 광원])
-        place(top + left, dy: H + 0.25cm, text(size: 11pt, fill: muted)[방향 →])
-      })
-      #legend(((name: "실제 가림", color: ink), (name: "숫자 몇 개로 요약 (경계가 뭉개짐)", color: c-orange)))
+      #set text(size: 12.5pt)
+      광원이 넓으면 넓은 범위를 평균해서 티가 덜 남. *작은 광원이 경계 근처*에 있으면 실제로는 밝아야 할 곳이 어둡게 (또는 반대로) 계산됨 → 그림자가 흐려지고 엉뚱한 곳이 어두워짐.
     ],
   )
 ]
@@ -619,9 +595,8 @@
 // ---------------------------------------------------------------------------
 #slide(kicker: "방법 · 실험 조건", title: "실험 설계: 한 번에 한 요소만 바꿔서 비교")[
   #grid(
-    align: horizon,
-    columns: (2fr, 1fr),
-    column-gutter: 1.2cm,
+    columns: (1.25fr, 1fr),
+    column-gutter: 1.0cm,
     [
       #table(
         columns: (auto, 1fr),
@@ -630,19 +605,32 @@
         text(fill: muted)[장면], [lego (Gaussian 97.5만 개 중 표면 점 4만 개 평가)],
         table.hline(stroke: 0.6pt + rule),
         text(fill: muted)[조명],
-        [균일한 하늘 + 원판 광원 1개. 크기 2°, 5°, 10°, 30° × 방향 3개\ #note[(참고: 태양은 약 0.5°)]],
+        [균일한 하늘 + 원판 광원 1개. 크기 2°, 5°, 10°, 30° × 방향 3개 (고도 60°, 30°, 10°)\ #note[(참고: 하늘의 태양은 약 0.5°)]],
         table.hline(stroke: 0.6pt + rule),
-        text(fill: muted)[정답], [압축 없이 방향 약 2.5만 개 각각에서 그림자맵을 그려 직접 계산],
+        text(fill: muted)[정답], [압축 없이 방향마다 그림자맵을 그려 직접 계산 (다음 장)],
         table.hline(stroke: 0.6pt + rule),
         text(fill: muted)[비교],
         [정답에서 한 요소만 변경
           → 그 요소가 만드는 오차만 분리],
         table.hline(stroke: 0.6pt + rule),
       )
+      #v(0.3em)
+      #image("r_10.png", height: 4.6cm)
     ],
-    image("r_10.png", width: 100%, height: 10cm, fit: "contain"),
+    [
+      #v(0.8em)
+      #align(center, disc-angle)
+      #v(0.4em)
+      #set text(size: 12.5pt)
+      - 광원 크기 = 점에서 원판 양 끝으로 그은 두 선 사이의 각 (*보이는 크기*). 스포트라이트가 빛을 퍼뜨리는 각이 아님.
+      - 광원은 아주 멀리 있어서 어느 점에서 봐도 같은 크기.
+      #note[그림은 과장 (약 15°). 고도는 위쪽 방향(장면 up 축) 기준.]
+    ],
   )
 ]
+
+// 정답 계산의 방향 샘플 (light-vis.typ)
+#sampling-slide
 
 // ---------------------------------------------------------------------------
 // 6. 실험 설계: 지표와 비교 대상
@@ -703,7 +691,7 @@
       #[
         #set text(size: 12pt)
         $ "오차" = (limits("평균")_(i in P) abs(E_i - E_i^"정답")) / (limits("평균")_(i in L) E_i^"정답") $
-        #note[$E_i$: 점 $i$의 밝기 · $P$: 반그림자 점 · $L$: 밝은 곳 점. 예) 0.2 = 경계에서 밝은 곳 밝기의 20%만큼 틀림. 작을수록 좋음.]
+        #note[$E_i$: 점 $i$의 밝기 · $P$: 반그림자 점 (원판 64방향 중 2\~62개 보임) · $L$: 밝은 곳 점 (63개 이상). 예) 0.2 = 경계에서 밝은 곳 밝기의 20%만큼 틀림. 작을수록 좋음.]
       ]
     ],
     [
