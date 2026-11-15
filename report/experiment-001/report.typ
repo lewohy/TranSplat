@@ -3,7 +3,7 @@
 
 #import "@preview/cetz:0.4.2"
 #import "theme.typ": *
-#import "depth-shell.typ": depth-example, black-shell
+#import "depth-shell.typ": depth-example
 #import "sphere-vis.typ": shell, cut-graph
 #import "light-vis.typ": disc-angle, sampling-slide
 
@@ -303,8 +303,8 @@
       #callout(color: c-orange)[
         #set text(size: 12pt)
         $r$ = 1.8 × (중심에서 가장 먼 Gaussian까지 거리). \
-        lego는 잡티 때문에 $r = 13.9$ (물체만 보면 약 1.9). \
-        → 이미지 대부분이 빈 공간, ②의 판정도 무뎌짐 (결과 A).
+        lego는 $r = 2.53$ (물체 대부분은 1.57 안에 있음). \
+        → 그림자맵이 약 1.6배 거칠어짐 (결과 A).
       ]
     ],
   )
@@ -392,7 +392,7 @@
     ],
     [
       #set text(size: 12.5pt)
-      Gaussian 97.5만 개를 *동시에* 계산 (행렬 곱 + 이미지 조회)
+      Gaussian 85만 개를 *동시에* 계산 (행렬 곱 + 이미지 조회)
       + 중심 좌표를 ①의 카메라 좌표로 변환 \
         → 깊이 $z$, 깊이 이미지 위 위치
       + 그 위치 주변 8곳(반경 1.5픽셀)에서 $d$를 읽음
@@ -458,8 +458,8 @@
     [
       #set text(size: 12.5pt)
       - Gaussian마다 *16칸짜리 통 하나*에 계속 더함. 가림값은 더한 뒤 버림.
-      - 메모리: 97.5만 × 16칸 × 4바이트 ≈ *62 MB*. 반복해도 늘지 않음 \
-        #note[(1,200개 값을 다 모아 두면 ≈ 4.7 GB)]
+      - 메모리: 85만 × 16칸 × 4바이트 ≈ *54 MB*. 반복해도 늘지 않음 \
+        #note[(1,200개 값을 다 모아 두면 ≈ 4.1 GB)]
       - 보정 행렬은 방향 배치로만 정해짐 (방향이 구 위에 완전히 고르지 않은 것 보정). 모든 Gaussian 공통이라 마지막에 한 번 곱함.
       - 결과: 1,200방향의 가림 패턴을 SH 기저 16개의 합으로 가장 비슷하게 맞춘 것 (최소제곱).
       #v(0.2em)
@@ -602,7 +602,7 @@
         columns: (auto, 1fr),
         align: (center, left),
         table.hline(stroke: 0.6pt + rule),
-        text(fill: muted)[장면], [lego (Gaussian 97.5만 개 중 표면 점 4만 개 평가)],
+        text(fill: muted)[장면], [lego (Gaussian 85만 개 중 표면 점 2만 개 평가)],
         table.hline(stroke: 0.6pt + rule),
         text(fill: muted)[조명],
         [균일한 하늘 + 원판 광원 1개. 크기 2°, 5°, 10°, 30° × 방향 3개 (고도 60°, 30°, 10°)\ #note[(참고: 하늘의 태양은 약 0.5°)]],
@@ -707,7 +707,7 @@
         table.hline(stroke: 0.6pt + rule),
         [① 현재 TranSplat 그대로], [지금 얼마나 틀리나], tag[B],
         table.hline(stroke: 0.3pt + rule),
-        [② ① + 쉬운 수정 4가지], [수정만으로 얼마나 개선되는지], tag[B],
+        [② ① + 쉬운 수정], [수정만으로 얼마나 개선되는지], tag[B],
         table.hline(stroke: 0.3pt + rule),
         [③ 정답 + SH 압축만\ #note[(계수 16 / 100 / 256개)]], [SH 압축 오차], [#tag[B] #tag[C]],
         table.hline(stroke: 0.3pt + rule),
@@ -750,21 +750,19 @@
       )
     },
   )
-  #let floaters = ((3.4, 0.5), (4.1, 1.7), (4.9, 0.8), (5.5, 1.5), (3.8, 1.2), (6.1, 0.4), (5.2, 1.9))
   #let v1 = {
     let cx = 1.3cm
     let cy = 1.05cm
-    place(top + left, dx: cx - 5.4cm, dy: cy - 5.4cm, circle(radius: 5.4cm, stroke: (
+    place(top + left, dx: cx - 0.96cm, dy: cy - 0.96cm, circle(radius: 0.96cm, stroke: (
       paint: c-orange,
       thickness: 1.2pt,
       dash: "dashed",
     )))
-    place(top + left, dx: cx - 0.8cm, dy: cy - 0.8cm, circle(radius: 0.8cm, stroke: 1.2pt + c-blue))
+    place(top + left, dx: cx - 0.6cm, dy: cy - 0.6cm, circle(radius: 0.6cm, stroke: 1.2pt + c-blue))
     place(top + left, dx: cx - 0.45cm, dy: cy - 0.1cm, rect(width: 0.9cm, height: 0.45cm, fill: c-base, radius: 2pt))
     place(top + left, dx: cx - 0.2cm, dy: cy - 0.35cm, rect(width: 0.4cm, height: 0.26cm, fill: c-base, radius: 2pt))
-    for (x, y) in floaters { dotc(x * 1cm, y * 1cm, r: 0.07cm, fill: muted) }
-    lbl(2.2cm, 1.5cm, [물체 범위 1.9], fill: c-blue)
-    lbl(6.85cm, 0.85cm, [잡티까지\ 포함 13.9], fill: c-orange.darken(10%))
+    lbl(2.5cm, 1.2cm, [물체 범위 1.57], fill: c-blue)
+    lbl(2.5cm, 0.2cm, [가장 먼 점 × 1.8 = 2.53], fill: c-orange.darken(10%))
   }
   #let v2 = {
     let sy = 1.15cm
@@ -813,20 +811,6 @@
     place(top + left, dx: 8.0cm, dy: 0.05cm, circle(radius: 0.16cm, fill: rgb("#f5b83d")))
     lbl(0.4cm, 0.35cm, [이웃 Gaussian에 걸림], size: 9.5pt, fill: c-orange.darken(10%))
   }
-  #let v5 = {
-    cam(0.45cm, 0.95cm)
-    place(top + left, dx: 6.6cm, dy: 0.3cm, rect(width: 1.7cm, height: 1.2cm, fill: ink.lighten(25%), radius: 2pt))
-    for k in range(5) {
-      let y = 0.42cm + k * 0.27cm
-      seg(0.8cm, y, 3.3cm, y, stroke: 1.1pt + c-blue)
-      seg(3.3cm, y, 6.6cm, y, stroke: (paint: c-base, thickness: 0.8pt, dash: "dotted"))
-    }
-    for (x, y) in ((3.4, 0.35), (3.6, 0.7), (3.35, 1.0), (3.65, 1.3), (3.45, 1.55), (3.9, 0.55), (3.85, 1.15)) {
-      dotc(x * 1cm, y * 1cm, r: 0.11cm, fill: muted)
-    }
-    lbl(4.1cm, 1.45cm, [잡티], size: 9.5pt)
-    lbl(6.6cm, 1.52cm, [전부 "가려짐"], size: 9.5pt)
-  }
   #grid(
     columns: (1fr, 1fr, 1fr),
     column-gutter: 0.5cm,
@@ -835,14 +819,14 @@
       "1",
       "장면 크기를 너무 크게 잡음",
       v1,
-      [잡티까지 포함해 장면 반지름을 13.9로 잡음 (물체는 1.9) → 그림자맵이 약 7배 거칠어짐.],
-      [잡티를 뺀 99.5% 범위 × 1.1로 계산],
+      [가장 먼 점 거리 × 1.8로 반지름 2.53 (물체는 1.57) → 그림자맵이 약 1.6배 거칠어짐.],
+      [물체 점 99.5% 범위 × 1.1로 계산],
     ),
     card(
       "2",
       "표면 앞/뒤가 뒤집힘",
       v2,
-      [표면 방향(normal)의 부호가 임의라 약 48%가 안쪽을 향함 → 빛을 반대쪽에서 받음.],
+      [표면 방향(normal)의 부호가 임의라 약 49%가 안쪽을 향함 → 빛을 반대쪽에서 받음.],
       [학습 카메라들이 본 쪽을 앞으로 (투표)],
     ),
     card(
@@ -860,14 +844,7 @@
       [겹친 납작한 Gaussian끼리 서로 가린다고 판정 → 얼룩 그림자.],
       [판정할 때 점을 표면 방향으로 살짝 띄움],
     ),
-    card(
-      "5",
-      "잡티가 카메라 앞을 막음",
-      v5,
-      [물체 밖 잡티가 그림자맵 카메라와 물체 사이에 있어 그 방향 전체가 "가려짐".],
-      [그림자 계산에서 잡티(1,907개) 제외],
-    ),
-    block(
+    grid.cell(colspan: 2, block(
       width: 100%,
       height: 5.3cm,
       breakable: false,
@@ -876,22 +853,23 @@
       fill: c-aqua.lighten(90%),
       stroke: 1.2pt + c-aqua,
       {
-        text(size: 13pt, weight: "bold")[기존 TranSplat에도 있나?]
-        v(0.1em)
-        set text(size: 11pt)
+        text(size: 13pt, weight: "bold")[원래 TranSplat 코드에도 이 문제가 있나?]
+        v(0.3em)
+        set text(size: 12pt)
+        set par(leading: 0.55em)
         table(
           columns: (auto, 1fr),
-          inset: (x: 0.3em, y: 0.22em),
+          inset: (x: 0.4em, y: 0.3em),
           align: (left + top, left + top),
-          tag[1], [*있음.* 장면 크기 = 1.8 × 가장 먼 점 거리],
-          tag[2], [*있음.* normal 부호를 보정하지 않음],
-          tag[3], [평가용 문제 (렌더에는 영향 적음)],
-          tag[4], [다른 방식 사용 (크기×3 bias + ESM)],
-          tag[5], [*있음.* 그림자맵에 잡티 포함],
+          tag[1], [*문제 있음.* 장면 크기 = 1.8 × 가장 먼 점 거리 (그림자맵이 1.6배 거칠어짐)],
+          tag[2], [*문제 있음.* normal 부호를 보정하지 않음],
+          tag[3], [해당 없음. 평가할 점을 고르는 문제 (렌더와 무관)],
+          tag[4], [해당 없음. 다른 방식 사용 (크기×3 bias + ESM)],
         )
-        text(size: 11pt)[→ *TranSplat도 고치면 개선 가능* (결과 B)]
+        v(0.2em)
+        text(size: 12pt)[→ 1·2는 원래 코드에도 있어 *고쳐야 함* (결과 B)]
       },
-    ),
+    )),
   )
 ]
 
@@ -929,97 +907,55 @@
         dotc(px, py, r: 0.1cm, fill: c-orange)
         lbl(4.9cm, 0.45cm, [하늘 중 #text(fill: c-blue, weight: "bold")[보이는 비율] (0\~1)], size: 11pt)
         lbl(4.9cm, 1.0cm, [정상적인 바깥 표면이면 0.3보다 훨씬 큼], size: 11pt, fill: muted)
-        lbl(4.9cm, 1.45cm, [처음 0.08 = "거의 다 가려짐"으로 잘못 계산], size: 11pt, fill: c-orange.darken(10%))
+        lbl(4.9cm, 1.45cm, [고치기 전: 27%의 점이 "거의 다 가려짐"(0.05 미만)], size: 11pt, fill: c-orange.darken(10%))
       })
       #v(0.2em)
       #bars(
-        ("처음", "1~4번 수정", "+ 5번 (잡티 제외)"),
+        ("고치기 전", "+ 2번 수정", "+ 4번 수정"),
         ((name: "중앙값", color: c-blue),),
-        ((0.079, 0.395, 0.655),),
+        ((0.342, 0.613, 0.672),),
         ymax: 0.8,
         ticks: (0, 0.2, 0.4, 0.6, 0.8),
         h: 3.4cm,
         w: 10.5cm,
-        xlabel: [평가점 4만 개의 AO 중앙값],
+        xlabel: [평가점 2만 개의 AO 중앙값 (2번 normal 부호, 4번 띄우기)],
       )
-      #note[검증: 정답을 아는 단순 장면(평면 위 구)에서 판정 오류 2\~3%. 그림자맵 해상도를 2배로 올렸을 때 결과가 바뀌는 정도: 2° 광원 0.09, 10° 이상 0.04 이하.]
+      #note[1·3번은 세 막대 모두 고친 상태. 고친 뒤 "거의 다 가려짐"인 점은 0.7%.]
     ],
     [
-      *잡티 (floater)*
+      *정답을 얼마나 믿을 수 있나*
       #v(0.1em)
-      #box(width: 100%, height: 2.6cm, {
-        let cx = 2.2cm
-        let cy = 1.35cm
-        place(top + left, dx: cx - 1.05cm, dy: cy - 1.05cm, circle(radius: 1.05cm, stroke: (
-          paint: c-blue,
-          thickness: 0.8pt,
-          dash: "dashed",
-        )))
-        place(top + left, dx: cx - 0.65cm, dy: cy - 0.05cm, rect(
-          width: 1.3cm,
-          height: 0.55cm,
-          fill: c-base,
-          radius: 2pt,
-        ))
-        place(top + left, dx: cx - 0.3cm, dy: cy - 0.4cm, rect(width: 0.6cm, height: 0.35cm, fill: c-base, radius: 2pt))
-        for (x, y, r) in (
-          (0.35, 0.3, 0.12),
-          (4.0, 0.4, 0.1),
-          (4.4, 2.0, 0.14),
-          (0.5, 2.3, 0.09),
-          (3.7, 1.2, 0.08),
-          (0.2, 1.3, 0.1),
-        ) {
-          place(top + left, dx: x * 1cm - r * 1cm, dy: y * 1cm - r * 1cm, circle(
-            radius: r * 1cm,
-            fill: muted.transparentize(40%),
-          ))
-        }
-        place(top + left, dx: 5.2cm, dy: 0.25cm, box(width: 8.4cm, text(size: 11.5pt)[
-          학습 중 *허공에 생긴 Gaussian*. 사진에서는 거의 안 보이지만 그림자 계산에서는 가림막이 됨.\
-          #text(fill: muted)[lego: 97.5만 개 중 1,907개 (0.2%)]
-        ]))
-      })
-      #v(0.5em)
-      *5번 문제가 만든 착시*
-      #v(0.1em)
-      #let grid-map(n, s, dark) = box(width: n * s, height: n * s, {
-        for j in range(n) {
-          for i in range(n) {
-            place(top + left, dx: i * s, dy: j * s, rect(width: s, height: s, stroke: 0.4pt + white, fill: if dark(
-              i,
-              j,
-            ) { ink.lighten(25%) } else { soft.darken(4%) }))
-          }
-        }
-      })
-      #let shadow(i, j) = j >= 6 and i + j >= 9
-      #grid(
-        columns: (auto, auto, 1fr),
-        column-gutter: 0.45cm,
-        align: top,
-        [#grid-map(8, 0.28cm, (i, j) => shadow(i, j) or (i < 4 and j < 4)) \ #note[고치기 전]],
-        [#grid-map(8, 0.28cm, shadow) \ #note[고친 뒤]],
-        text(size: 11.5pt)[
-          방향별 가림 지도에 격자와 딱 맞는 *큰 정사각형 덩어리*(잡티가 막은 방향)가 생김 → 블록 단위로 그리는 wavelet에 아주 유리한 모양.
-          #v(0.2em)
-          #text(fill: c-orange.darken(15%))[중간 결과에서 wavelet이 *최대 2.9배* 좋아 보인 원인. 고치자 사라짐.]
-        ],
+      #set text(size: 12.5pt)
+      정답 계산의 설정을 하나씩 바꿔 다시 계산하고, 원래 정답과의 차이를 같은 지표(반그림자 오차)로 잼.
+      #v(0.2em)
+      #table(
+        columns: (1fr, auto, auto, auto, auto),
+        align: (left, right, right, right, right),
+        table.header(text(fill: muted)[바꾼 설정], text(fill: muted)[2°], text(fill: muted)[5°], text(fill: muted)[10°], text(fill: muted)[30°]),
+        table.hline(stroke: 0.6pt + rule),
+        [그림자맵 해상도 2배], [0.08], [0.05], [0.04], [0.02],
+        [방향 수 2배], [0.02], [0.02], [0.02], [0.01],
+        [표면에서 띄우는 거리 1.5배], [0.18], [0.13], [0.09], [0.05],
+        table.hline(stroke: 0.6pt + rule),
       )
+      #note[비교 대상의 오차는 0.1\~0.4 (결과 B). 해상도·방향 수로 인한 차이는 이보다 충분히 작음. 띄우는 거리는 작은 광원에서 차이가 커서, 2° 결과는 추세만 봄.]
+      #v(0.3em)
+      #callout[
+        #set text(size: 12pt)
+        정답을 아는 단순 장면(평면 위 구, 실제 렌더러)에서 가림 판정 오류 2\~3%.
+      ]
     ],
   )
 ]
 
-// A 보충: lego의 검은 막 (depth-shell.typ)
-#black-shell
 
 // ---------------------------------------------------------------------------
 // 9. B: 오차 분해
 // ---------------------------------------------------------------------------
-#slide(kicker: "결과 B · 오차는 어디서 오나", title: "잡티 제외 등 4가지 수정으로 오차 절반, 남은 오차는 SH 압축")[
+#slide(kicker: "결과 B · 오차는 어디서 오나", title: "쉬운 수정으로 오차 1.2~1.9배 감소, 남은 오차는 대부분 SH 압축")[
   #let series = (
     (name: "현재 TranSplat 코드", color: c-base),
-    (name: "4가지 수정 적용 (SH 16개는 그대로)", color: c-blue),
+    (name: "쉬운 수정 적용 (SH 16개는 그대로)", color: c-blue),
     (name: "정답 + SH 16개 압축만", color: c-orange),
     (name: "정답 + SH 100개 압축만", color: c-aqua),
   )
@@ -1033,12 +969,13 @@
         ("2°", "5°", "10°", "30°"),
         series,
         (
-          (0.459, 0.537, 0.346, 0.260),
-          (0.216, 0.213, 0.199, 0.153),
-          (0.176, 0.177, 0.165, 0.114),
-          (0.134, 0.126, 0.099, 0.028),
+          (0.387, 0.331, 0.240, 0.203),
+          (0.208, 0.204, 0.197, 0.160),
+          (0.184, 0.177, 0.162, 0.105),
+          (0.154, 0.141, 0.108, 0.027),
         ),
-        ymax: 0.6,
+        ymax: 0.45,
+        ticks: (0, 0.1, 0.2, 0.3, 0.4),
         h: 5.4cm,
         w: 13cm,
         xlabel: [광원 크기 · 세로축: 그림자 경계 오차 (낮을수록 좋음)],
@@ -1048,11 +985,10 @@
     [
       #set text(size: 13pt)
       #callout[
-        *파랑에 넣은 4가지 수정* → 오차 *2\~2.5배* 감소
+        *파랑에 넣은 수정* → 오차 *1.2\~1.9배* 감소
         #set text(size: 12pt)
-        + 잡티를 그림자맵에서 제외
-        + 장면 크기를 잡티 뺀 범위로 계산
-        + 환경맵 SH 요약을 정확히 (1,200점 최근접 샘플 대신 적분)
+        + 장면 크기를 물체 범위로 (1번 문제)
+        + 환경맵 SH 요약을 정확히 (1,200점 최근접 샘플 대신 적분) #note[← 작은 광원에서 가장 큼 (2°: 0.39 → 0.28)]
         + 흐린 판정(ESM) 대신 0/1 판정 + 표면에서 띄우기
       ]
       #verdict("B", "예")[
@@ -1060,7 +996,7 @@
       ]
       #v(0.2em)
       #callout(color: c-aqua)[
-        SH 숫자를 6배(100개)로 늘려도 작은 광원 오차는 *25%만* 줆. SH를 늘리는 건 비효율적.
+        SH 숫자를 6배(100개)로 늘려도 작은 광원 오차는 *16\~20%만* 줆. SH를 늘리는 건 비효율적.
       ]
     ],
   )
@@ -1083,7 +1019,7 @@
       #bars(
         ("2°", "5°", "10°", "30°"),
         series,
-        ((1.12, 1.59, 1.72, 0.81), (0.94, 1.05, 1.01, 0.60)),
+        ((1.33, 1.70, 1.86, 0.91), (1.03, 1.16, 1.16, 0.63)),
         ymax: 2.4,
         ticks: (0, 0.5, 1.0, 1.5, 2.0),
         h: 5.4cm,
@@ -1095,7 +1031,7 @@
     ],
     [
       #verdict("C", "아니오", color: c-orange)[
-        같은 메모리 기준 *0.6\~1.05배*. 같은 개수로 봐도 최대 1.7배로 *2배 기준에 못 미침*
+        같은 메모리 기준 *0.6\~1.2배*. 같은 개수로 봐도 최대 1.9배(10°)로 *2배 기준에 못 미침*
       ]
       #v(0.3em)
       *메모리 환산* #note[(fp32)]
@@ -1105,14 +1041,14 @@
         align: (left, right, right),
         table.header(text(fill: muted)[저장 방식], text(fill: muted)[점 하나], text(fill: muted)[lego 전체]),
         table.hline(stroke: 0.6pt + rule),
-        [SH 16개 (현재)], [64 B], [62 MB],
-        [SH 256개], [1 KB], [1.0 GB],
-        [wavelet 128개 (값 + 위치)], [1 KB], [1.0 GB],
+        [SH 16개 (현재)], [64 B], [54 MB],
+        [SH 256개], [1 KB], [0.87 GB],
+        [wavelet 128개 (값 + 위치)], [1 KB], [0.87 GB],
         table.hline(stroke: 0.6pt + rule),
-        text(fill: muted)[압축 없음 (방향 24,576개)], text(fill: muted)[98 KB], text(fill: muted)[96 GB],
+        text(fill: muted)[압축 없음 (방향 24,576개)], text(fill: muted)[98 KB], text(fill: muted)[84 GB],
         table.hline(stroke: 0.6pt + rule),
       )
-      #note[wavelet은 "어느 조각인지" 위치도 저장해야 해서 같은 메모리면 *개수가 절반*. 위치는 4바이트로 가정 (2바이트로 줄이면 wavelet 약 170개). lego 전체 = Gaussian 97.5만 개. 실험은 평가점 4만 개만 계산해서 실제 사용량은 따로 기록하지 않음 → 계수 수로 환산.]
+      #note[wavelet은 "어느 조각인지" 위치도 저장해야 해서 같은 메모리면 *개수가 절반*. 위치는 4바이트로 가정 (2바이트로 줄이면 wavelet 약 170개). lego 전체 = Gaussian 85만 개. 실험은 평가점 2만 개만 계산해서 실제 사용량은 따로 기록하지 않음 → 계수 수로 환산.]
     ],
   )
 ]
@@ -1138,8 +1074,8 @@
       #v(0.3em)
       *2. 실사용에서는 점마다 쓸 수 있는 숫자가 적음*
       #text(size: 12.5pt)[
-        - Gaussian 약 100만 개에 각각 저장해야 해서, 256개만 써도 1 GB (앞 슬라이드)
-        - 그래서 실험도 실사용 가능한 16\~256개 범위에서 비교함 (평가점 4만 개만 계산해서 실험 자체의 메모리 문제는 없었음)
+        - Gaussian 약 85만 개에 각각 저장해야 해서, 256개만 써도 0.9 GB (앞 슬라이드)
+        - 그래서 실험도 실사용 가능한 16\~256개 범위에서 비교함 (평가점 2만 개만 계산해서 실험 자체의 메모리 문제는 없었음)
         - 이 범위에서는 wavelet 이점이 안 나옴. wavelet이 강했던 원 논문은 *환경맵 하나*를 골라 압축하고, 점 쪽 데이터는 훨씬 크게 저장함
       ]
 
@@ -1214,7 +1150,7 @@
       #v(0.4em)
       #callout(color: c-aqua)[
         #set text(size: 12pt)
-        작은 광원(2\~10°)에서 2048px 광원 분리는 SH 100개보다 *약 3배*, 4가지 수정 후보다 *약 5배* 정확함. 30°에서는 비슷함.
+        작은 광원(2\~10°)에서 2048px 광원 분리는 SH 100개보다 *약 3\~4배*, 쉬운 수정 후보다 *약 5\~6배* 정확함. 30°에서는 비슷함.
       ]
     ],
     [
@@ -1231,15 +1167,15 @@
           text(fill: muted)[30°],
         ),
         table.hline(stroke: 0.6pt + rule),
-        [현재 코드], [0.46], [0.54], [0.35], [0.26],
-        [4가지 수정 후], [0.22], [0.21], [0.20], [0.15],
-        [SH 100개 (압축만)], [0.13], [0.13], [0.10], [0.03],
+        [현재 코드], [0.39], [0.33], [0.24], [0.20],
+        [쉬운 수정 후], [0.21], [0.20], [0.20], [0.16],
+        [SH 100개 (압축만)], [0.15], [0.14], [0.11], [0.03],
         table.hline(stroke: 0.6pt + rule),
-        [광원 분리 · 1024px, 샘플 16], [0.13], [0.10], [0.07], [0.05],
+        [광원 분리 · 1024px, 샘플 16], [0.13], [0.09], [0.07], [0.04],
         [광원 분리 · 2048px, 샘플 16], hl[0.04], hl[0.04], hl[0.03], hl[0.03],
         table.hline(stroke: 0.6pt + rule),
       )
-      #note[px = 광원 방향 그림자맵 해상도, 샘플 = 광원 안에서 쏘는 방향 수. 샘플 1개(딱딱한 그림자)는 0.20\~0.27로 오히려 나쁨 → 부드러운 그림자용 샘플이 필요.]
+      #note[px = 광원 방향 그림자맵 해상도, 샘플 = 광원 안에서 쏘는 방향 수. 샘플 1개(딱딱한 그림자)는 0.21\~0.26으로 오히려 나쁨 → 부드러운 그림자용 샘플이 필요.]
       #v(0.2em)
       #callout[
         #set text(size: 11.5pt)
@@ -1267,11 +1203,11 @@
         table.hline(stroke: 0.6pt + rule),
         tag[A],
         [
-          정답 계산의 문제 5개 수정 \
-          (3개는 기존 TranSplat에도 있음)
+          정답 계산의 문제 4개 수정 \
+          (장면 크기·normal 부호는 원래 코드에도 있음)
         ],
         table.hline(stroke: 0.6pt + rule),
-        tag[B], [Yes. 4가지 수정 후 남는 오차는 대부분 압축],
+        tag[B], [Yes. 쉬운 수정 후 남는 오차는 대부분 압축],
         table.hline(stroke: 0.6pt + rule),
         tag(color: c-orange)[C], [No. 같은 메모리면 wavelet ≈ SH],
         table.hline(stroke: 0.6pt + rule),
@@ -1280,7 +1216,7 @@
         *wavelet 구현은 보류.* 대신 *기존 코드 수정 + 광원 분리*로 방향을 바꾸는 것을 제안.
       ]
       *다음 단계*
-      + 4가지 수정을 본 코드에 반영
+      + 쉬운 수정을 본 코드에 반영
       + 환경맵에서 광원 추출 + 그림자맵 직접 계산 구현
       + 실제 HDR 환경맵(실내, 해가 있는 야외)으로 재검증
     ],
@@ -1289,8 +1225,8 @@
       #set text(size: 13.5pt)
       - 합성 조명(균일한 하늘 + 원판)만 씀. 실제 환경맵은 광원을 떼어낸 나머지도 복잡할 수 있음.
       - lego에 대해서만 실험해봄
-      - 2° 광원은 정답 자체의 불확실성(0.09)이 오차와 비슷한 크기라 추세만 봄.
-      - 광원 분리 2048px 수치는 같은 해상도 정답과 비교한 것이라 낙관적 (실제로는 0.02\~0.09 더 클 수 있음).
+      - 2° 광원은 정답 자체의 불확실성(해상도 0.08, 띄우는 거리 0.18)이 오차와 비슷한 크기라 추세만 봄.
+      - 광원 분리 2048px 수치는 같은 해상도 정답과 비교한 것이라 낙관적 (실제로는 0.02\~0.08 더 클 수 있음).
       - wavelet에는 여러 종류(Haar, Daubechies 같은 부드러운 wavelet, 구면 wavelet 등)가 있는데 가장 단순한 Haar만 비교함. \
         (다만 참고한 triple product 방식(Ng 2004)이 Haar 기준이라 실제 후보도 Haar)
 

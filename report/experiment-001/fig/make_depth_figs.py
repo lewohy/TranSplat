@@ -20,9 +20,11 @@ import radiance_transfer_TranSplat as rt  # noqa: E402
 from gaussian_renderer import render  # noqa: E402
 
 OUT = Path(__file__).resolve().parent
-PLY = REPO / "sample/outputs/lego/point_cloud/iteration_30000/point_cloud.ply"
+PLY = REPO / "sample/outputs/lego_rgba/point_cloud/iteration_30000/point_cloud.ply"  # 원본 RGBA로 학습한 모델 (AGENTS.md 3.7)
 RES = 1024
 ELEV, AZIM = 35.0, 200.0  # up 축(학습 카메라 평균) 기준 고도/방위각 (도)
+# 슬라이드에 표시하는 지점 (픽셀 x, y). 깊이는 주변 5x5의 중앙값을 depth_meta.json에 기록
+PROBES = {"cab": (450, 285), "bucket": (590, 440), "plate": (640, 700)}
 
 
 def camera(center, direction, radius, up, device):
@@ -105,6 +107,7 @@ def main():
     meta = dict(
         elev_azim=(ELEV, AZIM), direction=d.tolist(), up=up.tolist(),
         transplat=dict(radius=r0, near=n0, far=f0, coverage=cov0),
+        probes={k: float(np.median(dep1[y - 2:y + 3, x - 2:x + 3])) for k, (x, y) in PROBES.items()},
         fixed=dict(radius=r1, near=n1, far=f1, coverage=cov1, frac_alpha_lt05=float(((dep1 > 0) & (alpha1 < 0.5)).mean()), depth_lo=lo, depth_hi=hi, n_culled=int((dist > r1).sum())),
     )
     (OUT / "depth_meta.json").write_text(json.dumps(meta, indent=2))
