@@ -29,7 +29,7 @@
         "CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}"
     },
     // -n keeps files Claude Code has already rewritten at runtime (e.g. .claude.json) instead of resetting them.
-    "postCreateCommand": "git config --global --add safe.directory '*' && git config core.fileMode false && cp -rn .devcontainer/claude-config/. \"$CLAUDE_CONFIG_DIR\"/",
+    "postCreateCommand": "git config --global --add safe.directory '*' && git config core.fileMode false && sh .devcontainer/exclude-submodule-builds.sh && cp -rn .devcontainer/claude-config/. \"$CLAUDE_CONFIG_DIR\"/",
     // The zellij web client binds to the container's loopback only; the forwarded port exposes it on the host's localhost.
     "postStartCommand": "zellij web --daemonize",
     "forwardPorts": [
@@ -53,11 +53,20 @@
                 "charliermarsh.ruff",
                 "tamasfe.even-better-toml",
                 "ms-python.vscode-pylance",
-                "myriad-dreamin.tinymist"
+                "myriad-dreamin.tinymist",
+                "James-Yu.latex-workshop"
             ],
             "settings": {
                 "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python",
-                "python.terminal.activateEnvironment": false
+                "python.terminal.activateEnvironment": false,
+                // report/paper: build outputs stay outside the repo, same as its AGENTS.md
+                "[latex]": {
+                    "editor.defaultFormatter": "James-Yu.latex-workshop"
+                },
+                "latex-workshop.latex.outDir": "/tmp/latex-out",
+                "latex-workshop.latex.autoBuild.run": "onSave",
+                "latex-workshop.view.pdf.viewer": "tab",
+                "latex-workshop.formatting.latex": "tex-fmt"
             }
         }
     }
