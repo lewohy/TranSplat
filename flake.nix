@@ -18,6 +18,13 @@
                 "claude-code"
               ];
           };
+          # report/paper(Overleaf)와 같은 pdfLaTeX + kotex 환경
+          tex = pkgs.texliveMedium.withPackages (ps: with ps; [
+            collection-langkorean
+            latexmk
+            latexindent
+            chktex
+          ]);
           toolPackages = with pkgs; [
             claude-code
             curl
@@ -26,6 +33,8 @@
             git
             jq
             pretendard
+            tex
+            tex-fmt
             tinymist
             typst
             typstyle
