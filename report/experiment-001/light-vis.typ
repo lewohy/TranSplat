@@ -61,13 +61,13 @@
 }
 
 #let sampling-slide = [
-#slide(kicker: "방법 · 정답 계산", title: "정답 밝기: 빛이 오는 방향을 잘게 나눠 하나씩 판정")[
+#slide(kicker: "방법 · 정답 계산", id: "sampling", title: "정답 밝기: 빛이 오는 방향을 잘게 나눠 하나씩 판정")[
   #grid(
     columns: (1fr, 1.05fr),
     column-gutter: 1.1cm,
     [
       #set text(size: 13pt)
-      한 점의 밝기 = 들어오는 빛을 *방향별로 더한 것*. 정답은 방향을 잘게 나눠, 방향마다 그림자맵(2048px)으로 *보임 1 / 가림 0*을 판정해서 더함.
+      한 점의 밝기 = 들어오는 빛을 *방향별로 더한 것*. 정답 계산은 방향을 잘게 나눠, 방향마다 그림자맵(2048px)으로 *보임 1 / 가림 0*을 판정해서 더함.
       #v(0.4em)
       #table(
         columns: (auto, 1fr),
@@ -81,14 +81,14 @@
       )
       #v(0.3em)
       $ E_"광원" = "광원 세기" times "원판 넓이" times 1/64 sum_(k=1)^64 "보임"_k times cos theta_k $
-      #note[$theta_k$: 표면 방향(normal)과 $k$번째 방향 사이의 각. 하늘 부분도 같은 방식으로 2.5만 방향을 더함 (다음 장). $E$ = 하늘 + 광원.]
-      #note[64방향은 원판 넓이를 64등분하도록 나선형으로 배치. 가림 판정은 ②와 달리 흐리게(ESM+PCF) 하지 않은 0/1.]
+      #note[$theta_k$: 표면 방향(normal)과 $k$번째 방향 사이의 각. 하늘 부분도 같은 방식으로 2.5만 방향을 더함 (#pref("ao-def")). $E$ = 하늘 + 광원.]
+      #note[64방향은 원판 넓이를 64등분하도록 나선형으로 배치. 가림 판정은 ②와 달리 흐리게(ESM+PCF) 하지 않은 0/1 (기준은 #pref("judge")).]
     ],
     [
       #align(center)[
         #disc-dots(R: 1.9, cut: 0.25, dot: 0.07)
         #v(-0.2em)
-        #text(size: 12pt)[점에서 광원 쪽을 올려다본 모습 (앞 장 원뿔의 단면) \ 64방향 중 #text(fill: c-sun.darken(30%))[*#visible-count(64, 0.25)개 보임*], 나머지는 가림막(회색)에 가림]
+        #text(size: 12pt)[점에서 광원 쪽을 올려다본 모습 (#pref("conditions") 원뿔의 단면) \ 64방향 중 #text(fill: c-sun.darken(30%))[*#visible-count(64, 0.25)개 보임*], 나머지는 가림막(회색)에 가림]
       ]
       #v(0.5em)
       #text(size: 12.5pt)[*보이는 개수로 점의 영역을 나눔* (점마다 따로 판정)]
@@ -137,7 +137,7 @@
 })
 
 #let sky-slide = [
-#slide(kicker: "방법 · 정답 계산", title: "하늘 부분 밝기와 AO (가려지지 않은 정도)")[
+#slide(kicker: "부록 · 정답 계산", id: "ao-def", title: "하늘 부분 밝기와 AO (가려지지 않은 정도)")[
   #grid(
     columns: (1.15fr, 1fr),
     column-gutter: 1cm,

@@ -13,8 +13,14 @@
 #let c-lego = rgb("#f2c230")
 #let c-plate = rgb("#e6d6b0")
 
-#let slide(title: none, kicker: none, body) = {
+// id: 다른 슬라이드에서 #pref(id)로 이 슬라이드를 가리킬 때 쓰는 이름
+// q: 이 슬라이드가 답하는 질문(A/B/C). 오른쪽 위에 질문 슬라이드(id "question")로 가는 링크를 둠
+#let slide(title: none, kicker: none, id: none, q: none, body) = {
   pagebreak(weak: true)
+  if id != none [#metadata(none)#label(id)]
+  if q != none {
+    place(top + right, context link(label("question"), text(size: 11pt, fill: muted)[← 질문 #q (#counter(page).at(label("question")).first()장)]))
+  }
   if kicker != none {
     text(size: 12pt, fill: c-blue, weight: "semibold", kicker)
     v(0.15em)
@@ -25,6 +31,10 @@
   }
   body
 }
+// id가 붙은 슬라이드를 "N장" 링크로 가리킴 (슬라이드를 넣고 빼도 번호가 따라감)
+#let pref(id) = context link(label(id), text(fill: c-blue)[#counter(page).at(label(id)).first()장])
+// 글자 자체를 id 슬라이드로 가는 링크로 만듦
+#let plink(id, body) = link(label(id), text(fill: c-blue, body))
 #let note(body) = text(size: 11.5pt, fill: ink2, body)
 #let callout(body, color: c-blue) = block(
   width: 100%,
@@ -41,6 +51,8 @@
   fill: color.lighten(85%),
   text(size: 12pt, weight: "semibold", fill: color.darken(25%), body),
 )
+// 누르면 id 슬라이드로 가는 tag
+#let tagl(id, color: c-blue, body) = link(label(id), tag(body, color: color))
 // 질문(A/B/C)에 대한 답을 강조하는 박스. 결과 슬라이드마다 같은 모양으로 쓴다.
 #let verdict(q, answer, color: c-blue, body) = block(
   width: 100%,
@@ -57,7 +69,7 @@
       size: 21pt,
       weight: "bold",
       fill: white,
-    )[#q: #answer]),
+    )[#link(label("question"), underline(offset: 2.5pt, stroke: 1.2pt + white)[#q]): #answer]),
     text(size: 12.5pt, body),
   ),
 )
