@@ -12,3 +12,6 @@
 	path = sparkvwr
 	url = https://github.com/rishabhreng/sparkvwr
 	update = none
+[submodule "report/paper"]
+	path = report/paper
+	url = https://github.com/lewohy/TBD_LWH.git
