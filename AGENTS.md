@@ -3,7 +3,7 @@
 이 저장소에서 작업하는 에이전트(Claude 세션 등)를 위한 인수인계 문서입니다.
 작업을 시작하기 전에 전체를 읽고, 작업이 끝날 때마다 아래 [문서 유지 규칙](#문서-유지-규칙)에 따라 갱신하세요.
 
-마지막 갱신: 2026-11-15
+마지막 갱신: 2026-11-16
 
 ---
 
@@ -33,7 +33,7 @@ TranSplat(arXiv 2503.22676, 본 저장소)의 한계 중 하나인 **고주파(�
 ## 3. 지금까지 한 일
 
 ### 3.1 `scripts/shadow_frequency_study.py`
-합성 환경맵(균일 ambient + 각지름 2/5/10/30° 원판 광원, 3방향)으로 per-Gaussian diffuse irradiance를 여러 방식으로 계산해 **oracle** 대비 오차를 낸다. 각 행은 oracle에서 한 요소만 바꾼 것. 실행 한 번으로 A(oracle 신뢰성)/B(쉬운 수정 후 SH 절단 비중)/C(Haar vs SH)와 판정 표를 `results.md` 맨 위에 출력한다.
+합성 환경맵(균일 ambient + 각지름 2/5/10/30° 원판 광원, 3방향)으로 per-Gaussian diffuse irradiance를 여러 방식으로 계산해 **oracle** 대비 오차를 낸다. 각 행은 oracle에서 한 요소만 바꾼 것. 실행 한 번으로 A(oracle 신뢰성)/B(SBF 후 SH 절단 비중)/C(Haar vs SH)와 판정 표를 `results.md` 맨 위에 출력한다.
 
 | 행 | 의미 |
 |---|---|
@@ -44,7 +44,7 @@ TranSplat(arXiv 2503.22676, 본 저장소)의 한계 중 하나인 **고주파(�
 | `sh{l}_L` / `_V` / `_LV` | 조명만 / visibility만 / 둘 다 SH 차수 l로 절단. `sh3_LV`가 현재 방식 |
 | `pipe1200` | 실제 Phase 1 + Phase 2 diffuse 코드 그대로 |
 | `pipe1200_exactL` | 위와 같되 조명 SH만 정확히 투영 |
-| `pipefix1200` / `_hard` | 쉬운 수정(robust radius + 정확한 조명 투영) 파이프라인, ESM / hard visibility |
+| `pipefix1200` / `_hard` | SBF(SH-preserving Basic Fixes, 2026-11-16에 "SBF"에서 이름 변경: robust radius + 정확한 조명 투영) 파이프라인, ESM / hard visibility |
 | `C_{V,LV,T}_{sh K,haar K}` | V / L·V / transfer를 SH 또는 Haar(cube face별 2D, nonlinear top-k)로 계수 K개로 압축. 요약은 압축 안 한 cube 대비 오차(`*_vscube`)로 비교 |
 | `C_H_*` | hybrid: 광원은 정확한 그림자, ambient만 압축 V |
 
@@ -94,7 +94,7 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
 신뢰할 수 있는 결론
 - **per-Gaussian Haar wavelet은 같은 메모리에서 SH보다 낫지 않다** (2~10°에서 0.92~1.20배, 30°에서는 0.6배). 같은 계수 수 기준으로도 이점은 K=256, 5~10°에서 1.6~1.8배뿐이고, 판정 임계 2배를 넘는 경우가 없다. cube 해상도를 올려도 바뀌지 않는다.
 - SH 차수 증가도 효율이 낮다: l=3 → 9(계수 6배)로 작은 광원 오차가 25%만 준다.
-- 쉬운 수정만으로 현재 파이프라인 오차가 2~2.5배 준다. floater 제거, robust radius, 조명 정확 투영, ESM 대신 hard 판정이다. 실제 phase 1도 같은 floater 문제를 갖고 있다 (radius 13.9, floater 포함 렌더).
+- SBF만으로 현재 파이프라인 오차가 2~2.5배 준다. floater 제거, robust radius, 조명 정확 투영, ESM 대신 hard 판정이다. 실제 phase 1도 같은 floater 문제를 갖고 있다 (radius 13.9, floater 포함 렌더).
 - 날카로운 광원을 relight 시점 그림자맵으로 따로 처리하면(2048px, 샘플 16) 광원 그림자 오차가 0.03~0.04다. 1024px×16도 5° 이상에서는 모든 압축 방식(SH256 포함)보다 낮다. 샘플 1개짜리 hard 그림자는 오히려 SH보다 나쁘므로 soft 샘플링이 필요하다.
 
 추세만 참고
@@ -103,8 +103,8 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
 - 합성 환경맵(균일 ambient + 원판) 기준이다. 실제 HDR에서는 광원 분리 후 남는 부분이 균일하지 않아 hybrid의 ambient 오차가 커질 수 있다. 저장소에 실제 HDR은 없다.
 
 ### 3.5 발표 자료 (2026-11-02)
-- `report/experiment-001/report.typ`: 연구미팅용 슬라이드 21장, **2026-11-15부터 수치·그림은 다시 학습한 `lego_rgba` 기준 (3.7)** (TranSplat 그림자 구현 개요 → 1단계 bake ① 깊이 이미지 렌더 (+ 개념 3D 그림·실제 lego 깊이 이미지 2장) / ② 가림 판정(ESM+PCF) / ③ SH 누적 → 2단계 relight ④ → 문제 (한 Gaussian의 방향별 가림을 구 껍질 3D 그림과 그 단면 그래프로, 둘 다 실제 SH16 복원값) → 질문 A/B/C → 실험 조건(광원 크기 = 점에서 본 각지름 그림) → 정답 계산(하늘 2.5만 방향 + 원판 64방향, 보이는 개수로 L/P/그림자) → 하늘 부분 밝기와 AO 식 → 지표 → A 정답 계산 문제 4개 → 수정 결과(AO, 정답 신뢰도) → B → C·메모리 환산 → 결과 분석 → 광원 분리 → 결론·한계). ①~③은 코드에서 방향 1,200개마다 한 번에 도는 루프라 1단계로 묶고, 위치 표시는 `flow-nav`. 실험 조건 슬라이드는 표 아래에 lego 사진(`r_10.png`), 오른쪽에 광원 크기 그림. 답 강조는 `verdict` 컴포넌트.
-  - 파일 구성: 색·컴포넌트·그림 도우미는 `theme.typ`, set 규칙(페이지·글꼴)은 `report.typ`에만 둔다. `depth-shell.typ`(`depth-example`)과 `light-vis.typ`(`disc-angle`, `sampling-slide`, `sky-slide`), `sphere-vis.typ`(`shell`, `cut-graph`, 데이터는 `fig/make_sphere_vis.py` → `fig/sphere_vis.json`, 합성 가림막과 그 SH16 복원)은 단독 컴파일용이 아니라 슬라이드 묶음을 내보내고 `report.typ`가 import해서 배치한다. 컴파일은 `report.typ` 하나.
+- `report/experiment-001/report.typ`: 연구미팅용 슬라이드 24장, **2026-11-15부터 수치·그림은 다시 학습한 `lego_rgba` 기준 (3.7)** (TranSplat 그림자 구현 개요 → 1단계 bake ① 깊이 이미지 렌더 (+ 개념 3D 그림·실제 lego 깊이 이미지 2장) / ② 가림 판정(ESM+PCF) / ③ SH 누적 → 2단계 relight ④ → 문제 (한 Gaussian의 방향별 가림을 구 껍질 3D 그림과 그 단면 그래프로, 둘 다 실제 SH16 복원값) → 질문 A/B/C → 실험 조건(광원 크기 = 점에서 본 각지름 그림) → 평가점 고르기(85만 → 불투명 51.4만 → 물체 범위 51.2만 → 카메라 2대 이상 41.6만 → 표면 0.5px 28.4만 → 무작위 2만, 단면 개념도) → 정답 계산(하늘 2.5만 방향 + 원판 64방향, 보이는 개수로 L/P/그림자) → 지표 → A 정답 계산 문제 4개 → 수정 결과(문제 1~4를 차례로 고친 AO, 정답 신뢰도) → B → C·메모리 환산 → 결과 분석 → 광원 분리 → 결론·한계 → 부록: 0/1 판정 기준(띄우는 거리 2×최대 반지름, 깊이 허용치 텍셀×(1+tanθ), 텍셀 0.0019), 하늘 부분 밝기와 AO 식, cube map 칸의 넓이 w_j(면 위 같은 간격 칸을 구에 투영, (2/64)²/|d|³ 후 합 4π로 정규화, 정확한 사각형 입체각과 차이 최대 0.02%, 가운데:꼭짓점 약 5:1)). ①~③은 코드에서 방향 1,200개마다 한 번에 도는 루프라 1단계로 묶고, 위치 표시는 `flow-nav`. 실험 조건 슬라이드는 표 아래에 lego 사진(`r_10.png`), 오른쪽에 광원 크기 그림. 답 강조는 `verdict` 컴포넌트.
+  - 파일 구성: 색·컴포넌트·그림 도우미는 `theme.typ`, set 규칙(페이지·글꼴)은 `report.typ`에만 둔다. `depth-shell.typ`(`depth-example`)과 `light-vis.typ`(`disc-angle`, `sampling-slide`, `sky-slide`, `cube-weight-slide`), `sphere-vis.typ`(`shell`, `cut-graph`, 데이터는 `fig/make_sphere_vis.py` → `fig/sphere_vis.json`, 합성 가림막과 그 SH16 복원)은 단독 컴파일용이 아니라 슬라이드 묶음을 내보내고 `report.typ`가 import해서 배치한다. 컴파일은 `report.typ` 하나. 정답(oracle)을 말할 때는 버전을 붙인다: 계산 문제를 n번까지 고친 것이 "+n 정답" (+0 = 고치기 전, +4 = 실험에 쓴 정답). 계산 과정 이름("정답 계산")과 질문 A의 일반적 의미는 그대로 둔다 (2026-11-16 사용자 결정). 다른 슬라이드를 가리킬 때는 "다음 장"·"13장" 같은 고정 표현 대신 그 슬라이드에 `slide(id: "...")`를 달고 `#pref("...")`(“N장” 링크) , `#plink("...")[글자]`(글자 자체를 링크), `#tagl("...")[B]`(누르면 이동하는 tag)로 쓴다. 질문 슬라이드는 `question`, 결과 슬라이드는 `result-a`, `result-b`, `result-c`, `alt`. 질문 A/B/C를 가리키는 tag(비교 대상 표, 결론)는 `question`으로, 질문 카드에서는 "→ 결과 N장"으로 답 슬라이드로 가고, 결과 슬라이드는 `slide(q: "B")`로 오른쪽 위에 "← 질문 B" 링크를 단다. 슬라이드를 넣고 빼도 번호가 따라감.
   - 잡티 가림 지도 (2026-11-15, 처음 모델 기준, 지금 슬라이드에는 안 씀): `fig/make_floater_figs.py`(GPU 약 4분, 렌더 결과는 `fig/floater_vis.npz`에 저장해 `--redraw`로 그림만 다시 그림). v2에서 고도 10° 광원이 가려졌다가 v3에서 보이는 점(공통 평가점 5,200개 중 2,767개) 중 하나(#776526)의 방향별 가림을 cube 32, 6면 펼침으로 잡티 포함/제외 렌더. n / −n / 광원 / 장면 위쪽 표시, 위쪽이 그림 위로 오게 상하 반전.
     - 잡티 때문에만 가려진 방향은 n 쪽 반구의 34%, 장면 위쪽 기준 고도 −21°~+17°(10~90% 분위)로 **수평선 근처 띠**다. 이전에 슬라이드에 쓴 "격자와 딱 맞는 정사각형", "하늘 위쪽 통째로"는 둘 다 틀려서 고침. 이 점 AO 0.38 → 0.83.
     - 이 점의 원래 2DGS normal(회전 z축)은 카메라 투표 normal과 정반대 (2번 문제의 실제 예).
@@ -113,6 +113,7 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
     - 같은 스크립트가 광원 시점 컬러 렌더(`floater_view_*.png`, 잡티 포함이면 화면 전체가 검게 덮임)도 만들지만 슬라이드에는 안 넣음.
   - 정답 계산 문제 중 1(장면 크기), 2(normal 부호)는 `radiance_transfer_TranSplat.py`에도 그대로 있다. 잡티는 처음 모델의 데이터 준비 문제라 슬라이드에서 뺌 (3.7).
   - 메모리는 실험에서 직접 재지 않았고 계수 수로 환산했다 (fp32, Haar 위치 4바이트 가정. lego_rgba 85만 개 기준 SH256 ≈ Haar128 ≈ 0.87 GB).
+- `report/paper/` (submodule, Overleaf와 동기화되는 HCIK 포스터 원고)와 그 그림 소스 `report/paper-figures/` (2026-11-16): 논문 스타일 typst 그림(`fig-teaser.typ` 큰 원을 따라 읽은 0/1 vs SH16/SH100, `fig-method.typ` 분석 흐름도, `fig-ratio.typ` SH/Haar 오차 비율)을 `build.sh`가 `report/paper/figure/*.png`(300 ppi)로 내보냄. teaser 데이터는 `make_teaser_data.py` → `teaser.json` (슬라이드와 같은 합성 가림막, 경계만 0.5°로 날카롭게, SH는 scipy로 l≤9까지).
 - `report/experiment-001/demo.html`: 한 점의 가림 지도를 SH / Haar로 압축해 비교하는 브라우저 데모 (실험과 같은 cube 64, top-k Haar, l≤15 SH).
 - 데모로 확인한 경향 (합성 장면, 추세만 참고): 표면 기울기 0°(가림 경계가 cube 격자와 나란함)에서는 Haar가 같은 개수 기준 2~2.7배 낫고, 25° 이상 기울면 0.6~1.4배로 이점이 사라진다. 같은 메모리 기준은 대부분 1 이하. 3.4의 "곡선 경계에서 Haar 비효율" 해석과 맞는다.
 
@@ -124,7 +125,7 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
   - penumbra nMAE(2/5/10/30°) v3 → v4: `sh3_LV` 0.177/0.179/0.167/0.114 → 0.176/0.177/0.163/0.110, `pipefix1200_hard` 0.217/0.216/0.202/0.153 → 0.213/0.211/0.195/0.146, C 비율(V, 같은 메모리) 0.98/1.04/1.00/0.60 → 0.98/1.01/0.95/0.58. **3.4의 B·C 결론은 유지.**
   - 실제 phase 1 그대로인 `pipe1200`만 0.46/0.54/0.35/0.26 → 0.38/0.59/0.36/0.28로 ±0.08 흔들림.
   - `shadow_hybrid_check.py`도 `drop_dark`를 읽지만 v4로는 아직 안 돌림 (원판 그림자 판정 변화가 작아 결론 영향은 없을 것으로 봄).
-- 현재 phase 1은 expected depth + `depth > 0`이면 유효라서, 옅은 Gaussian만 걸린 픽셀도 가림체가 된다 (고친 반지름 기준 한 방향 깊이 이미지에서 깊이가 찍힌 픽셀의 24%가 alpha < 0.5). 쉬운 수정에 "alpha 0.5 미만 픽셀 무시(또는 median depth)"를 추가 검토.
+- 현재 phase 1은 expected depth + `depth > 0`이면 유효라서, 옅은 Gaussian만 걸린 픽셀도 가림체가 된다 (고친 반지름 기준 한 방향 깊이 이미지에서 깊이가 찍힌 픽셀의 24%가 alpha < 0.5). SBF에 "alpha 0.5 미만 픽셀 무시(또는 median depth)"를 추가 검토.
 
 ### 3.7 lego를 원본 RGBA로 다시 학습 (2026-11-15)
 - 기존 `sample/outputs/lego`는 COLMAP으로 다시 만든 `sample/colmaps/lego/dense/0`(왜곡 보정 과정에서 alpha가 빠진 798px RGB, 배경 검정)로 학습되어 alpha 마스크 loss가 안 걸렸다. 저자 권장 경로(README: RGBA synthetic → alpha 마스크, `--lambda_alpha 0.05`)가 아니었음. 검은 막과 잡티는 이 데이터 준비 때문.
@@ -133,29 +134,32 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
 - 모델 비교 (신뢰): 물체 밖 잡티 1,907 → 0, phase 1 장면 반지름 13.8 → 2.53 (robust 1.57), r_10 흰 배경 렌더의 alpha>0.5 비율 100% → 26.4% (사진 물체 26.3%) → 검은 막 없음. normal 부호 뒤집힘은 여전히 49% (2DGS 고유).
 - study: `sample/outputs/lego_rgba/point_cloud/iteration_30000/shadow_frequency_study/results.md` (v3 설정과 같되 평가점 20,000 = 현재 기본값, 다른 점 집합). penumbra nMAE 2/5/10/30°:
   - A: AO 중앙값 0.672, res2x 0.081/0.053/0.036/0.019.
-  - B: `pipe1200` 0.387/0.331/0.240/0.203 (v4 0.38/0.59/0.36/0.28), `pipe1200_exactL` 0.276/0.263/0.250/0.208, `pipefix1200_hard` 0.208/0.204/0.197/0.160, `sh3_LV` 0.184/0.177/0.162/0.105, `sh9_LV` 0.154/0.141/0.108/0.027. 쉬운 수정 효과는 1.9/1.6/1.2/1.3배로 줄었다 (잡티·장면 크기 문제가 원래 없으므로). 남은 큰 수정은 조명 SH 정확 투영(작은 광원)과 hard 판정. share_hard 0.88/0.87/0.82/0.66 → B1·B2 성립 유지.
-  - C (V, 같은 메모리 haar128 vs sh256): 1.03/1.16/1.16/0.63, 같은 K=256: 1.33/1.70/1.86/0.91. 임계 2배를 넘는 조건 없음 → **3.4의 C 결론 유지.**
+  - B: `pipe1200` 0.387/0.331/0.240/0.203 (v4 0.38/0.59/0.36/0.28), `pipe1200_exactL` 0.276/0.263/0.250/0.208, `pipefix1200_hard` 0.208/0.204/0.197/0.160, `sh3_LV` 0.184/0.177/0.162/0.105, `sh9_LV` 0.154/0.141/0.108/0.027. SBF 효과는 1.9/1.6/1.2/1.3배로 줄었다 (잡티·장면 크기 문제가 원래 없으므로). 남은 큰 수정은 조명 SH 정확 투영(작은 광원)과 hard 판정. share_hard 0.88/0.87/0.82/0.66 → B1·B2 성립 유지.
+  - C (V, 같은 메모리 haar128 vs sh256): 1.03/1.16/1.16/0.63, 같은 K=256: 1.33/1.70/1.86/0.91. 같은 메모리 기준으로는 1.5배를 넘는 조건도 없음 → **3.4의 C 결론 유지.** 단 transfer(T) 압축, 같은 K=256에서는 1.57/2.05/2.16/1.07로 5·10°가 2배를 넘음 (verdict는 2°·5° 둘 다 요구해서 "아니오"). 2026-11-16 확인, 이전 "2배를 넘는 조건 없음"은 V에만 맞음. 비율은 K가 클수록 커짐 (V 5°: K16 0.91 → K64 1.17 → K256 1.70)
 - hybrid (`shadow_hybrid_check.py`, 같은 폴더 `hybrid_check.md`): 1024px×16 0.128/0.088/0.065/0.044, 2048px×16 0.042/0.036/0.034/0.032, 샘플 1개 0.21~0.26. 처음 모델과 거의 같음.
+- 주의 (2026-11-16 확인): study의 `pipe*` 행(현재 코드 포함)도 평가점의 카메라 투표 normal로 cosine을 계산한다. 실제 phase 2는 회전 z축을 부호 보정 없이 쓰므로(약 49% 뒤집힘) 실제 현재 코드 오차는 `pipe1200`보다 크다. 슬라이드 결과 B 메모에 적음.
+- 정답 계산 문제 1~4를 차례로 고친 AO (`scripts/shadow_ao_steps.py`, 같은 폴더 `ao_steps.md`, 2026-11-15): 고치기 전 기준 무작위 불투명 점 2만 개(3번부터는 그중 겉면 점 10,976개)에 누적 적용. AO 중앙값 0.274 → +1 장면 크기 0.273 → +2 normal 부호 0.515 → +3 겉면 점 0.608 → +4 normal offset 0.669, "거의 다 가려짐"(<0.05) 비율 0.285 → 0.287 → 0.062 → 0.006 → 0.007. 3·4단계는 study 본 실행(0.613/0.672)과 맞음 (신뢰). **1번은 AO에 영향 없음** (넓은 방향 평균이라). 1번의 날카로운 경계 영향은 따로 재지 않았다.
 - 깊이 이미지 예시(`make_depth_figs.py`)도 새 모델로 다시 렌더: 물체 밖 기록 없음, alpha<0.5 픽셀 0.3% (처음 모델 24%) → 3.6의 "alpha 0.5 미만 픽셀 무시" 검토는 이 모델에서는 불필요.
 - 발표 자료 반영 (2026-11-15, 사용자 결정): 전체를 새 모델 수치로 교체. 1번(장면 크기)은 2.53 vs 1.57로 영향이 작아진 문제로, 잡티·검은 막·처음 학습 사진 이야기는 실험 세팅 실수라 슬라이드에서 모두 뺌 (사용자 결정, 정답 계산 문제는 4개). 정답 신뢰도 표에 띄우는 거리 1.5배(normal_wide) 차이 0.18/0.13/0.09/0.05를 새로 넣음 (2° 결과는 추세만).
 
 ## 4. 다음 할 일
 
-방향 제안 (사용자 확인 필요): wavelet 대신 **쉬운 수정 + 광원 분리 hybrid**.
-1. `radiance_transfer_TranSplat.py`에 쉬운 수정 반영: floater 제외/robust radius, 조명 SH 정확 투영(최근접 1200점 샘플링 대체), visibility 판정(hard + normal offset 또는 ESM 파라미터 재조정).
+방향 제안 (사용자 확인 필요): wavelet 대신 **SBF + 광원 분리 hybrid**.
+1. `radiance_transfer_TranSplat.py`에 SBF 반영: floater 제외/robust radius, 조명 SH 정확 투영(최근접 1200점 샘플링 대체), visibility 판정(hard + normal offset 또는 ESM 파라미터 재조정).
 2. hybrid 구현: 환경맵에서 밝은 광원 추출 → 광원은 relight 시점에 그림자맵(soft, 샘플 16 정도)으로, 나머지는 기존 SH V로.
 3. 실제 HDR 몇 장(실내/야외 해, 창문)으로 study를 다시 돌려 hybrid의 나머지 SH 오차와 광원 추출 기준을 확인.
 
 ## 5. 판단 기준
 
 - **진행(wavelet)**: B 이후에도 penumbra 오차의 대부분이 SH 절단 **그리고** SH l=9에서도 작은 광원(2~5°) 오차가 큼 **그리고** C에서 같은 계수 수의 wavelet이 확실히 낮음.
-- **방향 전환**: 쉬운 수정만으로 충분, 또는 SH l=5~7로 충분, 또는 wavelet이 같은 예산에서 SH보다 낫지 않음.
-- 잠정 임계값: share 0.5, large 0.1, ratio 2.0, small lights = 2, 5°. 3.4 기준으로 B1·B2는 성립하고 C는 모든 K·메모리 조건에서 불성립 → 기준상 **방향 전환**. 사용자 확정 전.
+- **방향 전환**: SBF만으로 충분, 또는 SH l=5~7로 충분, 또는 wavelet이 같은 예산에서 SH보다 낫지 않음.
+- 2026-11-16 사용자 결정: 발표 자료·논문에서 C는 "2배 기준을 넘었나"(확인됨/기각됨)가 아니라 "측정해 보니 조건별 효율이 이 정도"로 서술한다. 효율 = 같은 오차를 내는 데 드는 메모리 비 (wavelet 계수 1개 = SH 2개 메모리, 측정점 사이 로그 보간, V 압축 2/5/10°): SH16 예산 0.26/0.33/0.43, SH64 0.59/0.82/0.94, SH256 1.16/1.37/1.22 (T 압축은 1.55/1.63/1.38). 손익분기는 SH 100~150개 예산. 30°는 모든 예산에서 0.5 안팎.
+- 스크립트의 잠정 임계값(verdict 출력용): share 0.5, large 0.1, ratio 2.0, small lights = 2, 5°. 3.4 기준으로 B1·B2는 성립하고 C는 모든 K·메모리 조건에서 불성립 → 기준상 **방향 전환**. 사용자 확정 전.
 
 ## 6. 미결정 사항 (사용자 결정 필요)
 
-- 4의 방향 제안(wavelet 중단, 쉬운 수정 + hybrid) 승인 여부.
-- 판단 임계값 확정 (결론은 임계값을 1.5배로 낮춰도 같은 메모리 기준에서는 바뀌지 않는다).
+- 4의 방향 제안(wavelet 중단, SBF + hybrid) 승인 여부.
+- 판단 임계값 확정. ratio 2.0은 근거가 약한 잠정값 (구현 비용, 작은 광원 정답 불확실성 0.08~0.18을 정성적으로 고려한 것, 문헌 근거 없음). 1.5배로 낮추면 같은 메모리 기준은 여전히 불성립, 같은 K=256 기준은 5·10°에서 성립. 대안: 배수 대신 "같은 메모리 비율 + 광원 분리와의 절대 오차 비교"로 판단 (2026-11-16 사용자에게 제안).
 - 실제 HDR 테스트용 환경맵 선택.
 
 ## 7. 환경 메모
@@ -181,7 +185,9 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
 - 컨테이너에 브라우저/node가 없다. HTML 확인은 scratch에 playwright Chromium을 받고, 부족한 공유 라이브러리를 `apt-get download`(사용자 경로 apt lists)로 받아 `LD_LIBRARY_PATH`로 지정해 headless 실행했다.
 - 이 컨테이너 안에서 `nix build`는 권한 오류로 안 된다 (2026-10-28 기준. flake 변경은 컨테이너 재빌드로 반영).
 - 컨테이너에서 `nvidia-smi`가 "Failed to initialize NVML: Unknown Error"를 내고 torch가 CUDA를 못 찾으면 컨테이너 재시작으로 해결됨 (2026-11-15, `/dev/nvidia*`는 남아 있었음).
-- `git`은 소유자 불일치로 `git -c safe.directory='*' ...` 형태로 실행해야 한다.
+- LaTeX (2026-11-16 추가, 컨테이너 재빌드 후 반영): `flake.nix`에 `report/paper`와 같은 texliveMedium + collection-langkorean, latexmk, chktex, latexindent, tex-fmt를 넣고 devcontainer에 LaTeX Workshop 확장(출력은 `/tmp/latex-out`)을 추가. 재빌드 전 이 컨테이너에는 LaTeX이 없어 논문 빌드를 확인하지 못했다.
+- `simple-knn` submodule은 `uv sync` 때 제자리 빌드해 `build/`, `*.egg-info/`가 생긴다. `.gitmodules`의 `ignore = untracked`는 상위 저장소 `git status`에서만 숨기고 VS Code처럼 submodule을 따로 여는 도구에는 보이므로, `.devcontainer/exclude-submodule-builds.sh`(postCreateCommand)가 submodule의 `info/exclude`에 두 경로를 넣는다 (2026-11-16).
+- `git`은 소유자 불일치로 safe.directory 설정이 필요하다. 2026-11-15에 global config(`~/.gitconfig`)에 `/workspaces/TranSplat`을 추가해 플래그 없이 실행된다. 컨테이너 재빌드 후 "dubious ownership" 오류가 나면 `git -c safe.directory='*' ...`로 실행하거나 다시 추가한다.
 
 ## 8. 커밋 규칙
 
