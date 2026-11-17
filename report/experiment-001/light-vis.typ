@@ -148,7 +148,7 @@
       #v(-0.2em)
       #set text(size: 12pt)
       - $0.2$: 하늘 밝기 (모든 방향 같음)
-      - $w_j$: 칸 $j$가 하늘에서 차지하는 넓이. cube map 칸은 면 가운데가 모서리보다 약 5배 넓어서 보정. 다 더하면 $4 pi$ (구 전체)
+      - $w_j$: 칸 $j$가 하늘에서 차지하는 넓이. cube map 칸은 면 가운데가 모서리보다 약 5배 넓어서 보정. 다 더하면 $4 pi$ (구 전체, 계산은 #pref("cube-weight"))
       - $max(cos theta_j, 0)$: 정면에서 오는 빛은 크게, 비스듬하면 작게, 표면 뒤쪽은 0
       #v(0.3em)
       #callout[
@@ -172,6 +172,103 @@
       )
       #v(0.2em)
       #note[AO = 보이는 방향의 $cos theta$ 합 ÷ 전부 보일 때의 합 (그림은 단면 개념도, 실제는 반구 전체). 조명과 무관하고 점 주변의 모양만으로 정해짐. 판정은 정답과 같은 0/1.]
+    ],
+  )
+]
+]
+
+// cube map 칸의 넓이 w_j: 면 위 같은 간격의 칸을 구에 투영하면 가운데 칸이 넓고 가장자리 칸이 좁다 (단면)
+#let cube-cross = cetz.canvas(length: 1cm, {
+  import cetz.draw: *
+  let S = 3.5
+  let n = 8
+  let P(x, y) = (x * S, y * S)
+  let ang(x) = calc.atan2(x, 1.0) // +x축에서 잰 각 (cetz atan2(x, y) = atan(y/x))
+  // 강조할 칸: 가운데, 가장자리
+  let cells = ((0.0, 0.25, c-blue), (0.75, 1.0, c-orange))
+  for (x0, x1, col) in cells {
+    line((0, 0), P(x0, 1), P(x1, 1), close: true, fill: col.lighten(82%), stroke: none)
+  }
+  // 정육면체 단면 (위쪽 절반) + 단위 원
+  line(P(-1, 0), P(-1, 1), P(1, 1), P(1, 0), stroke: 0.8pt + ink2)
+  arc((0, 0), start: 0deg, stop: 180deg, radius: S, anchor: "origin", stroke: 0.8pt + muted)
+  // 면 위 같은 간격 칸 경계와 중심에서의 선
+  for i in range(n + 1) {
+    let x = -1 + 2 * i / n
+    line(P(x, 1), P(x, 1.06), stroke: 0.6pt + ink2)
+    line((0, 0), P(x, 1), stroke: 0.3pt + rule.darken(15%))
+  }
+  for (x0, x1, col) in cells {
+    line(P(x0, 1), P(x1, 1), stroke: 2.4pt + col)
+    arc((0, 0), start: ang(x1), stop: ang(x0), radius: S, anchor: "origin", stroke: 2.4pt + col)
+  }
+  // 가장자리 칸: 거리와 기울기
+  let xc = 0.875
+  let dl = calc.sqrt(xc * xc + 1)
+  line((0, 0), P(xc, 1), stroke: (paint: c-orange.darken(20%), thickness: 0.7pt, dash: "dashed"))
+  content(P(xc * 0.55 + 0.1, 0.55), anchor: "west", text(size: 10pt, fill: c-orange.darken(25%))[거리 $|d|$])
+  line(P(xc, 1), P(xc, 0.72), stroke: 0.6pt + ink2)
+  arc(P(xc, 1), start: 270deg, stop: 270deg - calc.atan(xc), radius: 0.7, anchor: "origin", stroke: 0.6pt + ink2)
+  content(P(xc - 0.13, 0.72), text(size: 9.5pt, fill: ink2)[$theta$])
+  // 라벨
+  content(P(0.125, 1.15), text(size: 10pt, fill: c-blue.darken(15%))[가운데 칸])
+  content(P(0.875, 1.15), text(size: 10pt, fill: c-orange.darken(15%))[가장자리 칸])
+  content(P(-1.06, 1), anchor: "east", text(size: 10pt, fill: ink2)[cube 면 \ (같은 간격)])
+  content(P(-0.72, 0.42), text(size: 10pt, fill: muted)[단위 구])
+  circle((0, 0), radius: 0.09, fill: c-lego, stroke: 0.6pt + c-lego.darken(30%))
+  content((0, -0.35), text(size: 10pt, fill: ink2)[점 (cube의 중심)])
+})
+
+// 면 하나의 w_j (8×8로 줄여 그림, 가운데를 1로)
+#let cube-face-w(n: 8, size: 3.0) = cetz.canvas(length: 1cm, {
+  import cetz.draw: *
+  let h = size / n
+  for r in range(n) {
+    for c in range(n) {
+      let x = -1 + (c + 0.5) * 2 / n
+      let y = -1 + (r + 0.5) * 2 / n
+      let w = calc.pow(x * x + y * y + 1, -1.5)
+      let wmax = calc.pow(2 / (n * n) + 1, -1.5)
+      rect((c * h, r * h), ((c + 1) * h, (r + 1) * h), fill: c-blue.lighten(100% - 85% * w / wmax), stroke: 0.4pt + white)
+    }
+  }
+  content((size / 2, -0.3), text(size: 10pt, fill: ink2)[cube 면 하나 (진할수록 $w_j$ 큼)])
+})
+
+#let cube-weight-slide = [
+#slide(kicker: "부록 · 정답 계산", id: "cube-weight", title: [cube map 칸의 넓이 $w_j$])[
+  #grid(
+    columns: (1.05fr, 1fr),
+    column-gutter: 0.9cm,
+    [
+      #align(center, cube-cross)
+      #v(0.1em)
+      #note[단면 그림. 면 위에서는 칸 너비가 같지만, 점에서 보면 가장자리 칸은 멀고(거리 $|d|$) 비스듬해서(각 $theta$) 구 위에서 *좁은 호*가 됨.]
+      #v(0.3em)
+      #grid(
+        columns: (auto, 1fr),
+        column-gutter: 0.5cm,
+        align: horizon,
+        cube-face-w(size: 2.6),
+        note[같은 계산을 면 전체에 한 결과 (실제는 64×64). 가운데가 가장 넓고 꼭짓점이 가장 좁음.],
+      )
+    ],
+    [
+      #set text(size: 12.5pt)
+      점을 중심으로 한 변 2짜리 정육면체를 두고, 각 면을 64×64칸으로 *같은 간격* 분할.
+      - 칸 중심 $d = (x, y, 1)$ ($x, y$: −1\~1), 방향 $omega_j = d "/" |d|$
+      - $w_j$ = 그 칸을 *단위 구에 투영한 넓이* (입체각)
+      #v(0.2em)
+      $ w_j approx underbrace((2/64)^2, "면 위 칸 넓이") times underbrace(1/(|d|^2), "멀수록 작게") times underbrace(cos theta = 1/(|d|), "비스듬할수록 작게") = (2\/64)^2 / (|d|^3) $
+      #v(-0.2em)
+      - 6면을 모두 더해 정확히 $4 pi$ (구 전체)가 되도록 맞춤
+      #v(0.2em)
+      #callout[
+        #set text(size: 12pt)
+        면 가운데 $|d| = 1$ → 가장 넓음. 꼭짓점 $|d| approx sqrt(3)$ → 약 *1/5*. \
+        사각형의 정확한 입체각 식과 비교하면 차이 최대 0.02% (64칸이 충분히 작음).
+      ]
+      #note[원판 광원처럼 같은 넓이로 나누지 않은 이유: wavelet 압축(#pref("result-c"))이 cube 면별 정사각형 격자 위에서 계산되므로 격자를 유지하고 넓이만 보정함. 코드: `cube_directions`.]
     ],
   )
 ]

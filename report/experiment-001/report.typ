@@ -5,7 +5,7 @@
 #import "theme.typ": *
 #import "depth-shell.typ": depth-example
 #import "sphere-vis.typ": shell, cut-graph
-#import "light-vis.typ": disc-angle, sampling-slide, sky-slide
+#import "light-vis.typ": disc-angle, sampling-slide, sky-slide, cube-weight-slide
 
 #set page(
   paper: "presentation-16-9",
@@ -1401,3 +1401,6 @@
 
 // 하늘 부분 밝기와 AO (light-vis.typ)
 #sky-slide
+
+// cube map 칸의 넓이 w_j (light-vis.typ)
+#cube-weight-slide
