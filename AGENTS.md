@@ -3,7 +3,7 @@
 이 저장소에서 작업하는 에이전트(Claude 세션 등)를 위한 인수인계 문서입니다.
 작업을 시작하기 전에 전체를 읽고, 작업이 끝날 때마다 아래 [문서 유지 규칙](#문서-유지-규칙)에 따라 갱신하세요.
 
-마지막 갱신: 2026-11-16
+마지막 갱신: 2026-11-19
 
 ---
 
@@ -47,6 +47,7 @@ TranSplat(arXiv 2503.22676, 본 저장소)의 한계 중 하나인 **고주파(�
 | `pipefix1200` / `_hard` | SBF(SH-preserving Basic Fixes, 2026-11-16에 "SBF"에서 이름 변경: robust radius + 정확한 조명 투영) 파이프라인, ESM / hard visibility |
 | `C_{V,LV,T}_{sh K,haar K}` | V / L·V / transfer를 SH 또는 Haar(cube face별 2D, nonlinear top-k)로 계수 K개로 압축. 요약은 압축 안 한 cube 대비 오차(`*_vscube`)로 비교 |
 | `C_H_*` | hybrid: 광원은 정확한 그림자, ambient만 압축 V |
+| `C_S_*` | split: ambient는 SH16 V, 광원 항만 압축 V (2026-11-19 추가) |
 
 지표: `nmae_{region} = mean|E−E_oracle|(region) / mean E_oracle(lit)`. 영역은 광원 내부 샘플 가시 비율로 lit(≥98%)/penumbra/umbra(≤2%).
 
@@ -113,7 +114,7 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
     - 같은 스크립트가 광원 시점 컬러 렌더(`floater_view_*.png`, 잡티 포함이면 화면 전체가 검게 덮임)도 만들지만 슬라이드에는 안 넣음.
   - 정답 계산 문제 중 1(장면 크기), 2(normal 부호)는 `radiance_transfer_TranSplat.py`에도 그대로 있다. 잡티는 처음 모델의 데이터 준비 문제라 슬라이드에서 뺌 (3.7).
   - 메모리는 실험에서 직접 재지 않았고 계수 수로 환산했다 (fp32, Haar 위치 4바이트 가정. lego_rgba 85만 개 기준 SH256 ≈ Haar128 ≈ 0.87 GB).
-- `report/paper/` (submodule, Overleaf와 동기화되는 HCIK 포스터 원고)와 그 그림 소스 `report/paper-figures/` (2026-11-16): 논문 스타일 typst 그림(`fig-teaser.typ` 큰 원을 따라 읽은 0/1 vs SH16/SH100, `fig-method.typ` 분석 흐름도, `fig-ratio.typ` SH/Haar 오차 비율)을 `build.sh`가 `report/paper/figure/*.png`(300 ppi)로 내보냄. teaser 데이터는 `make_teaser_data.py` → `teaser.json` (슬라이드와 같은 합성 가림막, 경계만 0.5°로 날카롭게, SH는 scipy로 l≤9까지).
+- `report/paper/` (submodule, Overleaf와 동기화되는 HCIK 포스터 원고)와 그 그림 소스 `report/paper-figures/` (2026-11-16): 논문 스타일 typst 그림(`fig-teaser.typ` 벽 뒤 바닥 그림자: 옆모습·위에서 본 바닥·바닥 밝기 그래프로 실제(0/1) vs visibility만 SH16으로 요약한 방식, `fig-method.typ` 분석 흐름도, `fig-ratio.typ` SH/Haar 오차 비율)을 `build.sh`가 `report/paper/figure/*.pdf`(벡터, 2026-11-19에 300 ppi PNG에서 바꿈)로 내보냄. teaser 데이터는 `make_teaser_data.py` → `teaser.json` (높이 1 벽, 고도 40° 2° 태양 + 하늘 0.2, 조명은 정확히 두고 visibility만 SH l≤3 투영. 경계에서 실제는 0.22 → 0.98로 급변, SH16은 거리 0~3에 걸쳐 0.03 → 0.94로 천천히 변함. 2026-11-19에 Ours(광원 분리: 하늘은 SH16 V, 태양은 원판 안 16방향을 정확히 판정 = 해상도 오차 없는 이상적 shadow map)를 추가, 평균 오차 SH16 0.16 vs Ours 0.002로 실제와 겹침. 실험의 광원 분리 오차 0.03~0.04(해상도 포함)보다 낙관적인 그림). 2026-11-18 연구미팅 피드백으로 원고 전반 수정 (규칙은 `report/paper/AGENTS.md`).
 - `report/experiment-001/demo.html`: 한 점의 가림 지도를 SH / Haar로 압축해 비교하는 브라우저 데모 (실험과 같은 cube 64, top-k Haar, l≤15 SH).
 - 데모로 확인한 경향 (합성 장면, 추세만 참고): 표면 기울기 0°(가림 경계가 cube 격자와 나란함)에서는 Haar가 같은 개수 기준 2~2.7배 낫고, 25° 이상 기울면 0.6~1.4배로 이점이 사라진다. 같은 메모리 기준은 대부분 1 이하. 3.4의 "곡선 경계에서 Haar 비효율" 해석과 맞는다.
 
@@ -136,6 +137,7 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
   - A: AO 중앙값 0.672, res2x 0.081/0.053/0.036/0.019.
   - B: `pipe1200` 0.387/0.331/0.240/0.203 (v4 0.38/0.59/0.36/0.28), `pipe1200_exactL` 0.276/0.263/0.250/0.208, `pipefix1200_hard` 0.208/0.204/0.197/0.160, `sh3_LV` 0.184/0.177/0.162/0.105, `sh9_LV` 0.154/0.141/0.108/0.027. SBF 효과는 1.9/1.6/1.2/1.3배로 줄었다 (잡티·장면 크기 문제가 원래 없으므로). 남은 큰 수정은 조명 SH 정확 투영(작은 광원)과 hard 판정. share_hard 0.88/0.87/0.82/0.66 → B1·B2 성립 유지.
   - C (V, 같은 메모리 haar128 vs sh256): 1.03/1.16/1.16/0.63, 같은 K=256: 1.33/1.70/1.86/0.91. 같은 메모리 기준으로는 1.5배를 넘는 조건도 없음 → **3.4의 C 결론 유지.** 단 transfer(T) 압축, 같은 K=256에서는 1.57/2.05/2.16/1.07로 5·10°가 2배를 넘음 (verdict는 2°·5° 둘 다 요구해서 "아니오"). 2026-11-16 확인, 이전 "2배를 넘는 조건 없음"은 V에만 맞음. 비율은 K가 클수록 커짐 (V 5°: K16 0.91 → K64 1.17 → K256 1.70)
+- 광원만 wavelet (split, 2026-11-19): `C_S_*` 행 = ambient는 SH16 V(TranSplat 그대로), 원판 광원 항만 압축 V (`C_S_haar{K}`는 Gaussian마다 SH16 + Haar K 저장). `--only-compact --eval-idx-from <study>/per_point.npz`로 같은 평가점 실행 → `.../shadow_frequency_study_split/results.md` (기존 C 비율이 소수 둘째 자리까지 같게 재현됨). 정답 대비 penumbra nMAE 2/5/10/30°: SH16만 0.179/0.171/0.154/0.093, +Haar8 0.215/0.214/0.195/0.137(오히려 나빠짐), +Haar32 0.176/0.159/0.122/0.057, +Haar128 0.130/0.097/0.057/0.021, +Haar256 0.113/0.070/0.038/0.016. 같은 메모리 SH만(SH64 0.161/0.151/0.120/0.032, SH256 0.135/0.112/0.066/0.014)과 비슷 (신뢰). 오차가 거의 전부 광원 항에서 나오므로(ambient 압축 오차는 `C_H` 0.001) V 전체를 압축한 `C_V_haar`와 결과가 같다. 광원 shadow map(2048×16) 0.042/0.036/0.034/0.032보다 2~5°에서 2~3배 크다.
 - hybrid (`shadow_hybrid_check.py`, 같은 폴더 `hybrid_check.md`): 1024px×16 0.128/0.088/0.065/0.044, 2048px×16 0.042/0.036/0.034/0.032, 샘플 1개 0.21~0.26. 처음 모델과 거의 같음.
 - 주의 (2026-11-16 확인): study의 `pipe*` 행(현재 코드 포함)도 평가점의 카메라 투표 normal로 cosine을 계산한다. 실제 phase 2는 회전 z축을 부호 보정 없이 쓰므로(약 49% 뒤집힘) 실제 현재 코드 오차는 `pipe1200`보다 크다. 슬라이드 결과 B 메모에 적음.
 - 정답 계산 문제 1~4를 차례로 고친 AO (`scripts/shadow_ao_steps.py`, 같은 폴더 `ao_steps.md`, 2026-11-15): 고치기 전 기준 무작위 불투명 점 2만 개(3번부터는 그중 겉면 점 10,976개)에 누적 적용. AO 중앙값 0.274 → +1 장면 크기 0.273 → +2 normal 부호 0.515 → +3 겉면 점 0.608 → +4 normal offset 0.669, "거의 다 가려짐"(<0.05) 비율 0.285 → 0.287 → 0.062 → 0.006 → 0.007. 3·4단계는 study 본 실행(0.613/0.672)과 맞음 (신뢰). **1번은 AO에 영향 없음** (넓은 방향 평균이라). 1번의 날카로운 경계 영향은 따로 재지 않았다.
@@ -181,11 +183,12 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
   - typst/tinymist는 nix env 경로를 시스템 폰트로 찾지 않아 이 ENV가 필요하다. typst CLI와 `tinymist lsp` 모두 `TYPST_FONT_PATHS`를 읽고, buildEnv의 심볼릭 링크도 따라간다 (임시 폴더로 확인).
   - fontconfig 기반 프로그램(브라우저, matplotlib 등)은 이 경로를 모른다. 필요하면 fontconfig 설정을 따로 추가해야 한다.
   - 재빌드 전에는 Pretendard OTF를 받아 `--font-path`로 지정해 컴파일했다.
+- 논문 그림 글꼴 (2026-11-19): 원고(pdfLaTeX + kotex) 본문은 영문 Computer Modern, 한글 나눔명조(kotex 기본 `nanummj`)라 `report/paper-figures/style.typ`도 `("New Computer Modern", "NanumMyeongjo")`로 맞춤. New Computer Modern은 typst 내장, 나눔명조는 `flake.nix`의 `nanum`(컨테이너 재빌드 후 반영). 재빌드 전에는 Google Fonts의 NanumMyeongjo TTF를 받아 `TYPST_FONT_PATHS`에 폴더를 덧붙여 빌드함. `build.sh`는 글꼴이 없으면 멈춤 (typst는 경고만 내고 다른 글꼴로 그리므로).
 - typst `@preview` 패키지(cetz 0.4.2 등)는 첫 컴파일 때 인터넷에서 받아 캐시한다 (2026-11-14 컨테이너에서 동작 확인).
 - 컨테이너에 브라우저/node가 없다. HTML 확인은 scratch에 playwright Chromium을 받고, 부족한 공유 라이브러리를 `apt-get download`(사용자 경로 apt lists)로 받아 `LD_LIBRARY_PATH`로 지정해 headless 실행했다.
 - 이 컨테이너 안에서 `nix build`는 권한 오류로 안 된다 (2026-10-28 기준. flake 변경은 컨테이너 재빌드로 반영).
 - 컨테이너에서 `nvidia-smi`가 "Failed to initialize NVML: Unknown Error"를 내고 torch가 CUDA를 못 찾으면 컨테이너 재시작으로 해결됨 (2026-11-15, `/dev/nvidia*`는 남아 있었음).
-- LaTeX (2026-11-16 추가, 컨테이너 재빌드 후 반영): `flake.nix`에 `report/paper`와 같은 texliveMedium + collection-langkorean, latexmk, chktex, latexindent, tex-fmt를 넣고 devcontainer에 LaTeX Workshop 확장(출력은 `/tmp/latex-out`)을 추가. 재빌드 전 이 컨테이너에는 LaTeX이 없어 논문 빌드를 확인하지 못했다.
+- LaTeX (2026-11-16 추가, 컨테이너 재빌드 후 반영): `flake.nix`에 `report/paper`와 같은 texliveMedium + collection-langkorean, latexmk, chktex, latexindent, tex-fmt를 넣고 devcontainer에 LaTeX Workshop 확장(출력은 `/tmp/latex-out`)을 추가. 2026-11-18 재빌드 후 `latexmk`로 원고 빌드 확인. PDF를 PNG로 볼 때는 texlive에 들어 있는 `rungs`(ghostscript) 사용 (`gs`, `pdftoppm` 없음).
 - `simple-knn` submodule은 `uv sync` 때 제자리 빌드해 `build/`, `*.egg-info/`가 생긴다. `.gitmodules`의 `ignore = untracked`는 상위 저장소 `git status`에서만 숨기고 VS Code처럼 submodule을 따로 여는 도구에는 보이므로, `.devcontainer/exclude-submodule-builds.sh`(postCreateCommand)가 submodule의 `info/exclude`에 두 경로를 넣는다 (2026-11-16).
 - `git`은 소유자 불일치로 safe.directory 설정이 필요하다. 2026-11-15에 global config(`~/.gitconfig`)에 `/workspaces/TranSplat`을 추가해 플래그 없이 실행된다. 컨테이너 재빌드 후 "dubious ownership" 오류가 나면 `git -c safe.directory='*' ...`로 실행하거나 다시 추가한다.
 
