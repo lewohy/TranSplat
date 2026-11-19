@@ -33,6 +33,9 @@ attributes the loss to a specific cause:
                       T = transfer V * max(n.w, 0); rep = sh{K} (K = (l+1)^2
                       coefficients), haar{K} (K largest area-weighted Haar
                       coefficients per face pyramid) or cube (no compression)
+    C_H_{rep}         hybrid: disc shadowed exactly, ambient through compressed V
+    C_S_{rep}         split: ambient through SH-16 V, disc through compressed V
+                      (TranSplat's SH for the sky, a separate representation for the light)
 
 All sh*/pipe* rows use the l<=2 cosine, so compare them against `cos2` as well
 as `oracle`. Directions are expressed in the SH frame used by
@@ -819,6 +822,8 @@ def compact_study(lights, normals, VF, VC, D, w, res, Y_all, sh_orders, haar_cou
 
     C_H_* (hybrid): the disc is shadowed exactly (as a per-light shadow map at relight time would),
     only the ambient part goes through the compressed V.
+    C_S_* (split): the ambient part goes through SH-16 V (as TranSplat stores it), only the disc
+    goes through the compressed V, so C_S_haar{K} stores SH 16 + Haar K per Gaussian.
 
     Returns ({light: {row: E}}, {rep: mean relative L2 error}).
     """
@@ -858,6 +863,7 @@ def compact_study(lights, normals, VF, VC, D, w, res, Y_all, sh_orders, haar_cou
         n = normals[a : a + chunk]
         V = VF[a : a + chunk].float()
         k_T = (n @ D.T).clamp(min=0.0)
+        amb16 = (approx(V, "sh", 16)[0] * k_T * w).sum(1)
         for target, X in (("V", V), ("T", V * k_T)):
             for label, kind, p in reps:
                 Xh, coef = approx(X, kind, p)
@@ -877,6 +883,8 @@ def compact_study(lights, normals, VF, VC, D, w, res, Y_all, sh_orders, haar_cou
                             VC[lt.name][a : a + chunk].float() * k_C
                         ).sum(1)
                         E[lt.name].setdefault(f"C_H_{label}", []).append(e_h)
+                        e_s = lt.ambient * amb16 + lt.radiance * lt.cap_w * (Xc * k_C).sum(1)
+                        E[lt.name].setdefault(f"C_S_{label}", []).append(e_s)
                     else:
                         e = lt.ambient * (Xh * w).sum(1) + lt.radiance * lt.cap_w * Xc.sum(1)
                         E[lt.name].setdefault(f"C_T_{label}", []).append(e)
@@ -1100,6 +1108,15 @@ def summarize(results, approx_err, diag, lights, args):
         "",
     ]
     lines += table(["disc deg"] + [r for _, r in reps], rows)
+    lines += [
+        "**S** (split): the ambient part uses SH-16 V (as TranSplat), only the disc uses the compressed V, so "
+        "S haar{K} stores SH 16 + Haar K per Gaussian. Errors against the oracle, then against `C_S_cube` "
+        "(disc compression alone):",
+        "",
+    ]
+    for metric in (pen, pen_c):
+        rows = [[f"{s:g}", metric] + [fmt(avg(f"C_S_{r}", metric, s)) for _, r in reps] for s in sizes]
+        lines += table(["disc deg", "metric"] + [r for _, r in reps], rows)
     rows = []
     for target in ("V", "T"):
         rows.append(
