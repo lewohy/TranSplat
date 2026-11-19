@@ -12,8 +12,8 @@
 
 #let setup(body) = {
   set page(width: auto, height: auto, margin: 3pt, fill: white)
-  // 원고(pdfLaTeX + kotex) 본문과 같은 글꼴: 영문 Computer Modern, 한글 나눔명조
-  set text(font: ("New Computer Modern", "NanumMyeongjo"), size: 7pt, fill: ink)
+  // HCIK 2027 서식은 나눔 글꼴만 허용: 원고 본문과 같은 나눔명조만 씀 (수식 글꼴을 피하려고 그림에 $...$를 쓰지 않음)
+  set text(font: "NanumMyeongjo", size: 7pt, fill: ink)
   body
 }
 

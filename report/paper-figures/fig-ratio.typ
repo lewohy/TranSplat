@@ -13,8 +13,8 @@
   let X = lin(-0.4, 3.4, w)
   let Y = lin(0, 2.2, h)
   axes(w, h, X, Y, (0, 1, 2, 3), (0, 0.5, 1, 1.5, 2),
-    xlabel: [광원 각지름], ylabel: [SH 오차 $div$ wavelet 오차],
-    xfmt: i => [#sizes.at(i)$degree$], yfmt: v => [#v])
+    xlabel: [광원 각지름], ylabel: [SH 오차 ÷ wavelet 오차],
+    xfmt: i => [#sizes.at(i)°], yfmt: v => [#v])
   for (v, lab) in ((1, [같음]),) {
     line((0, Y(v)), (w, Y(v)), stroke: (paint: gray, thickness: 0.7pt, dash: "dashed"))
     content((w + 0.06, Y(v)), anchor: "west", text(size: 6.5pt, fill: gray, lab))

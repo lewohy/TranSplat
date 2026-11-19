@@ -20,8 +20,8 @@
   let top = (
     (0.95, [학습된 2DGS \ (lego, 85만 개)]),
     (3.0, [표면 Gaussian \ 20,000개]),
-    (5.25, [방향별 0/1 판정 $V$ \ (24,576 + 64방향)]),
-    (7.35, [*기준값* $E$ \ (Eq. 1)]),
+    (5.25, [방향별 0/1 판정 V \ (24,576 + 64방향)]),
+    (7.35, [*기준값* E \ (Eq. 1)]),
   )
   for (i, (x, body)) in top.enumerate() {
     node((x, y0), if i == 2 { 2.2 } else { 1.65 }, 0.72, body, bg: if i == 3 { c-a.lighten(85%) } else { white })
@@ -34,8 +34,8 @@
   let yb = 2.1
   let bottom = (
     [(i) TranSplat],
-    [(ii) $V$, 조명 \ $arrow.r$ SH $K$개],
-    [(iii) $V$ \ $arrow.r$ Haar $K$개],
+    [(ii) V, 조명 \ → SH K개],
+    [(iii) V \ → Haar K개],
     [(iv) 광원만 \ shadow map],
   )
   let xs = (0.95, 3.4, 5.375, 7.35)
@@ -51,5 +51,5 @@
   line((xs.at(1), yb), (7.35, yb), stroke: 0.5pt + gray)
   content(((xs.at(1) + xs.at(3)) / 2, yb + 0.14), anchor: "south", text(size: 6pt, fill: gray)[기준값에서 한 요소만 바꿈])
   // 오차
-  node((4.15, 0.32), 8.0, 0.55, [그림자 경계 오차 $e$ (Eq. 2): 기준값과 비교, 광원 크기 2, 5, 10, 30$degree$], bg: c-b.lighten(88%))
+  node((4.15, 0.32), 8.0, 0.55, [그림자 경계 오차 e (Eq. 2): 기준값과 비교, 광원 크기 2, 5, 10, 30°], bg: c-b.lighten(88%))
 })
