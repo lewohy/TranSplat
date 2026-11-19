@@ -12,7 +12,8 @@
 
 #let setup(body) = {
   set page(width: auto, height: auto, margin: 3pt, fill: white)
-  set text(font: "Pretendard", size: 7pt, fill: ink)
+  // 원고(pdfLaTeX + kotex) 본문과 같은 글꼴: 영문 Computer Modern, 한글 나눔명조
+  set text(font: ("New Computer Modern", "NanumMyeongjo"), size: 7pt, fill: ink)
   body
 }
 
