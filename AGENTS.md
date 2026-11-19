@@ -3,7 +3,7 @@
 이 저장소에서 작업하는 에이전트(Claude 세션 등)를 위한 인수인계 문서입니다.
 작업을 시작하기 전에 전체를 읽고, 작업이 끝날 때마다 아래 [문서 유지 규칙](#문서-유지-규칙)에 따라 갱신하세요.
 
-마지막 갱신: 2026-11-19
+마지막 갱신: 2026-11-20
 
 ---
 
@@ -114,7 +114,7 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
     - 같은 스크립트가 광원 시점 컬러 렌더(`floater_view_*.png`, 잡티 포함이면 화면 전체가 검게 덮임)도 만들지만 슬라이드에는 안 넣음.
   - 정답 계산 문제 중 1(장면 크기), 2(normal 부호)는 `radiance_transfer_TranSplat.py`에도 그대로 있다. 잡티는 처음 모델의 데이터 준비 문제라 슬라이드에서 뺌 (3.7).
   - 메모리는 실험에서 직접 재지 않았고 계수 수로 환산했다 (fp32, Haar 위치 4바이트 가정. lego_rgba 85만 개 기준 SH256 ≈ Haar128 ≈ 0.87 GB).
-- `report/paper/` (submodule, Overleaf와 동기화되는 HCIK 포스터 원고)와 그 그림 소스 `report/paper-figures/` (2026-11-16): 논문 스타일 typst 그림(`fig-teaser.typ` 벽 뒤 바닥 그림자: 옆모습·위에서 본 바닥·바닥 밝기 그래프로 실제(0/1) vs visibility만 SH16으로 요약한 방식, `fig-method.typ` 분석 흐름도, `fig-ratio.typ` SH/Haar 오차 비율)을 `build.sh`가 `report/paper/figure/*.pdf`(벡터, 2026-11-19에 300 ppi PNG에서 바꿈)로 내보냄. teaser 데이터는 `make_teaser_data.py` → `teaser.json` (높이 1 벽, 고도 40° 2° 태양 + 하늘 0.2, 조명은 정확히 두고 visibility만 SH l≤3 투영. 경계에서 실제는 0.22 → 0.98로 급변, SH16은 거리 0~3에 걸쳐 0.03 → 0.94로 천천히 변함. 2026-11-19에 Ours(광원 분리: 하늘은 SH16 V, 태양은 원판 안 16방향을 정확히 판정 = 해상도 오차 없는 이상적 shadow map)를 추가, 평균 오차 SH16 0.16 vs Ours 0.002로 실제와 겹침. 실험의 광원 분리 오차 0.03~0.04(해상도 포함)보다 낙관적인 그림). 2026-11-18 연구미팅 피드백으로 원고 전반 수정 (규칙은 `report/paper/AGENTS.md`).
+- `report/paper/` (submodule, Overleaf와 동기화되는 HCIK 포스터 원고)와 그 그림 소스 `report/paper-figures/` (2026-11-16): 논문 스타일 typst 그림(`fig-teaser.typ` 벽 뒤 바닥 그림자: 옆모습·위에서 본 바닥·바닥 밝기 그래프로 실제(0/1) vs visibility만 SH16으로 요약한 방식, `fig-method.typ` 분석 흐름도, `fig-ratio.typ` SH/Haar 오차 비율)을 `build.sh`가 `report/paper/figure/*.pdf`(벡터, 2026-11-19에 300 ppi PNG에서 바꿈)로 내보냄. teaser 데이터는 `make_teaser_data.py` → `teaser.json` (높이 1 벽, 고도 40° 2° 태양 + 하늘 0.2, 조명은 정확히 두고 visibility만 SH l≤3 투영. 경계에서 실제는 0.22 → 0.98로 급변, SH16은 거리 0~3에 걸쳐 0.03 → 0.94로 천천히 변함. 2026-11-19에 Ours(광원 분리: 하늘은 SH16 V, 태양은 원판 안 16방향을 정확히 판정 = 해상도 오차 없는 이상적 shadow map)를 추가, 평균 오차 SH16 0.16 vs Ours 0.002로 실제와 겹침. 실험의 광원 분리 오차 0.03~0.04(해상도 포함)보다 낙관적인 그림). 2026-11-18 연구미팅 피드백으로 원고 전반 수정 (규칙은 `report/paper/AGENTS.md`). 참고문헌은 HCIK 형식의 `report/paper/hcik.bst`(인용 순서 번호)로 쓰고, 2026-11-18의 "3개만 인용" 제한은 2026-11-19에 풀어 3DGS·2DGS·GS-IR·Ng 2004·NeRF 인용을 되살림.
 - `report/experiment-001/demo.html`: 한 점의 가림 지도를 SH / Haar로 압축해 비교하는 브라우저 데모 (실험과 같은 cube 64, top-k Haar, l≤15 SH).
 - 데모로 확인한 경향 (합성 장면, 추세만 참고): 표면 기울기 0°(가림 경계가 cube 격자와 나란함)에서는 Haar가 같은 개수 기준 2~2.7배 낫고, 25° 이상 기울면 0.6~1.4배로 이점이 사라진다. 같은 메모리 기준은 대부분 1 이하. 3.4의 "곡선 경계에서 Haar 비효율" 해석과 맞는다.
 
@@ -183,7 +183,7 @@ oracle 오염 원인과 수정 (2026-11-02 확인):
   - typst/tinymist는 nix env 경로를 시스템 폰트로 찾지 않아 이 ENV가 필요하다. typst CLI와 `tinymist lsp` 모두 `TYPST_FONT_PATHS`를 읽고, buildEnv의 심볼릭 링크도 따라간다 (임시 폴더로 확인).
   - fontconfig 기반 프로그램(브라우저, matplotlib 등)은 이 경로를 모른다. 필요하면 fontconfig 설정을 따로 추가해야 한다.
   - 재빌드 전에는 Pretendard OTF를 받아 `--font-path`로 지정해 컴파일했다.
-- 논문 그림 글꼴 (2026-11-19): 원고(pdfLaTeX + kotex) 본문은 영문 Computer Modern, 한글 나눔명조(kotex 기본 `nanummj`)라 `report/paper-figures/style.typ`도 `("New Computer Modern", "NanumMyeongjo")`로 맞춤. New Computer Modern은 typst 내장, 나눔명조는 `flake.nix`의 `nanum`(컨테이너 재빌드 후 반영). 재빌드 전에는 Google Fonts의 NanumMyeongjo TTF를 받아 `TYPST_FONT_PATHS`에 폴더를 덧붙여 빌드함. `build.sh`는 글꼴이 없으면 멈춤 (typst는 경고만 내고 다른 글꼴로 그리므로).
+- 논문 그림 글꼴 (2026-11-19): 원고(pdfLaTeX + kotex) 본문이 영문 Computer Modern, 한글 나눔명조(kotex 기본 `nanummj`)였어서 `report/paper-figures/style.typ`도 `("New Computer Modern", "NanumMyeongjo")`로 맞춤. New Computer Modern은 typst 내장, 나눔명조는 `flake.nix`의 `nanum`(컨테이너 재빌드 후 반영). 재빌드 전에는 Google Fonts의 NanumMyeongjo TTF를 받아 `TYPST_FONT_PATHS`에 폴더를 덧붙여 빌드함. `build.sh`는 글꼴이 없으면 멈춤 (typst는 경고만 내고 다른 글꼴로 그리므로). 2026-11-19에 HCIK 2027 서식으로 원고 본문 영문도 나눔명조가 되어, 그림의 영문(Computer Modern)만 본문과 다름 (그림이 작아 그대로 둠).
 - typst `@preview` 패키지(cetz 0.4.2 등)는 첫 컴파일 때 인터넷에서 받아 캐시한다 (2026-11-14 컨테이너에서 동작 확인).
 - 컨테이너에 브라우저/node가 없다. HTML 확인은 scratch에 playwright Chromium을 받고, 부족한 공유 라이브러리를 `apt-get download`(사용자 경로 apt lists)로 받아 `LD_LIBRARY_PATH`로 지정해 headless 실행했다.
 - 이 컨테이너 안에서 `nix build`는 권한 오류로 안 된다 (2026-10-28 기준. flake 변경은 컨테이너 재빌드로 반영).
