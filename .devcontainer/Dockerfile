@@ -24,7 +24,7 @@ ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=1000
 
-# TYPST_FONT_PATHS: typst/tinymist do not look in the nix env, so point them at its fonts (Korean: pretendard).
+# TYPST_FONT_PATHS: typst/tinymist do not look in the nix env, so point them at its fonts (Korean: pretendard, nanum).
 ENV TZ=${TZ} \
     TZDIR=/opt/transplat-env/share/zoneinfo \
     LANG=C.UTF-8 \

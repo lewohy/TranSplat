@@ -32,6 +32,7 @@
             fish
             git
             jq
+            nanum # 논문 그림 한글 글꼴 (kotex 본문과 같은 나눔명조)
             pretendard
             tex
             tex-fmt
